@@ -1,11 +1,10 @@
-import { useAppSupabaseClient } from '~/utils/supabase'
 import type { Tables } from '../../types/database.types'
 
-export type CardSet = Tables<'sets'>
+export type CardCollection = Tables<'collections'>
 export type Card = Tables<'cards'>
 
 export const useCards = () => {
-  const supabase = useAppSupabaseClient();
+  const supabase = useSupabaseClient();
 
   if (!supabase) {
     console.error("Supabase client not initialized");
@@ -13,9 +12,9 @@ export const useCards = () => {
   }
 
   // Fetch all card sets
-  const getCardSets = async () => {
+  const getCardCollections = async () => {
     const { data, error } = await supabase
-      .from("sets")
+      .from("collections")
       .select("*")
       .order("name");
 
@@ -26,7 +25,7 @@ export const useCards = () => {
 
     console.log("Fetched card sets:", data);
 
-    return data as CardSet[];
+    return data as CardCollection[];
   };
 
   // Fetch black cards for a specific set
@@ -62,7 +61,7 @@ export const useCards = () => {
   };
 
   // Fetch a set with all its cards
-  const getSetWithCards = async (setId: string) => {
+  const getCollectionWithCards = async (setId: string) => {
     const [set, blackCards, whiteCards] = await Promise.all([
       supabase.from("sets").select("*").eq("id", setId).single(),
       getBlackCards(setId),
@@ -75,7 +74,7 @@ export const useCards = () => {
     }
 
     return {
-      set: set.data as CardSet,
+      set: set.data as CardCollection,
       blackCards,
       whiteCards,
       totalCards: blackCards.length + whiteCards.length,
@@ -118,7 +117,7 @@ export const useCards = () => {
       return null;
     }
 
-    return data as CardSet;
+    return data as CardCollection;
   };
 
   // Add custom black card
@@ -162,10 +161,10 @@ export const useCards = () => {
   };
 
   return {
-    getCardSets,
+    getCardSets: getCardCollections,
     getBlackCards,
     getWhiteCards,
-    getSetWithCards,
+    getSetWithCards: getCollectionWithCards,
     getCardsFromSets,
     createCustomSet,
     addBlackCard,

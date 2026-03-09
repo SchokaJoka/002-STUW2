@@ -1,8 +1,8 @@
-<script setup>
-import { useAppSupabaseClient } from '~/utils/supabase'
+<script setup lang="ts">
 import { useCards } from '~/composables/useCards'
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const supabase = useAppSupabaseClient()
+const supabase = useSupabaseClient()
 const { getCardSets, getCardsFromSets } = useCards()
 
 const route = useRoute()
@@ -11,14 +11,16 @@ const roomCode = String(route.params.roomId ?? '').toUpperCase()
 // Game state
 const players = ref([])
 const authError = ref('')
-const currentPlayerId = ref(null)
-const currentRoomDbId = ref(null)
+const playerId = ref<string | null>(null)
+const roomId = ref<string | null>(null)
 const isLeaving = ref(false)
 const gameStarted = ref(false)
 const currentCzarIndex = ref(null)
+const playerHandCards = ref([])
 
 // CAH specific state
 const hand = ref([])
+const collectionCards = ref<any>({})
 const blackCard = ref(null)
 const playedCards = ref([]) // Cards played by others this round
 const myPlayedCard = ref(null)
@@ -26,19 +28,31 @@ const winner = ref(null)
 const roundStatus = ref('LOBBY') // LOBBY, SELECTION, JUDGING, WINNER
 const scores = ref({})
 
+// Computed property to join hand card IDs with their text from the collection
+const mappedHandCards = computed(() => {
+    const allCards = collectionCards.value?.data || []
+    return playerHandCards.value.map(handCard => {
+        const cardDetails = allCards.find(c => c.id === handCard.card_id)
+        return {
+            ...handCard,
+            text: cardDetails?.text || 'Loading...'
+        }
+    })
+})
+
 // First player in join order acts as game master.
-const currentGameMasterUserId = computed(() => {
+const gameMasterId = computed(() => {
     const firstPlayer = players.value[0]
     return firstPlayer?.user_id ?? null
 })
 
 // True when this client is the current game master.
-const isCurrentPlayerGameMaster = computed(() => {
-    return !!currentPlayerId.value && currentPlayerId.value === currentGameMasterUserId.value
+const isGameMaster = computed(() => {
+    return !!playerId.value && playerId.value === gameMasterId.value
 })
 
 // User id of the active czar for the current round.
-const currentCzarUserId = computed(() => {
+const czarId = computed(() => {
     if (!gameStarted.value || currentCzarIndex.value === null || players.value.length === 0) {
         return null
     }
@@ -47,267 +61,48 @@ const currentCzarUserId = computed(() => {
 })
 
 // True when this client is the active czar.
-const isCurrentPlayerCzar = computed(() => {
-    return !!currentPlayerId.value && currentPlayerId.value === currentCzarUserId.value
+const isCzar = computed(() => {
+    return !!playerId.value && playerId.value === czarId.value
 })
 
-let gameChannel
-
-// ACTION - Start game
-const startGame = async () => {
-    if (!gameChannel || players.value.length < 2 || !isCurrentPlayerGameMaster.value) {
-        if (players.value.length < 2) authError.value = 'Need at least 2 players to start.'
-        return
-    }
-
-    // Fetch cards
-    const sets = await getCardSets()
-    console.log('Available sets:', sets)
-    if (sets.length === 0) {
-        authError.value = 'No card sets found in database.'
-        return
-    }
-
-    const { blackCards, whiteCards } = await getCardsFromSets([sets[0].id])
-    
-    const initialBlackCard = blackCards[0]
-    const remainingBlackCards = blackCards.slice(1)
-    const remainingWhiteCards = whiteCards // We'll deal from here
-
-    await recordMove({
-        type: 'START_GAME',
-        blackCard: initialBlackCard,
-        czarIndex: 0,
-        decks: {
-            black: remainingBlackCards.map(c => c.id),
-            white: remainingWhiteCards.map(c => c.id)
-        }
-    })
-}
-
-const recordMove = async (payload) => {
-    if (!currentRoomDbId.value || !currentPlayerId.value) return
-
-    // Get latest seq
-    const { data: lastMove } = await supabase
-        .from('game_moves')
-        .select('seq')
-        .eq('room_id', currentRoomDbId.value)
-        .order('seq', { ascending: false })
-        .limit(1)
-        .single()
-    
-    const nextSeq = (lastMove?.seq ?? 0) + 1
-
-    const { error } = await supabase
-        .from('game_moves')
-        .insert({
-            room_id: currentRoomDbId.value,
-            actor_id: currentPlayerId.value,
-            payload,
-            seq: nextSeq
-        })
-
-    if (error) console.error('Failed to record move:', error)
-}
-
-const playCard = async (card) => {
-    if (isCurrentPlayerCzar.value || roundStatus.value !== 'SELECTION' || myPlayedCard.value) return
-
-    myPlayedCard.value = card
-    hand.value = hand.value.filter(c => c.id !== card.id)
-
-    await recordMove({
-        type: 'PLAY_CARD',
-        card: card,
-        playerId: currentPlayerId.value
-    })
-}
-
-const selectWinner = async (playedCard) => {
-    if (!isCurrentPlayerCzar.value || roundStatus.value !== 'JUDGING') return
-
-    await recordMove({
-        type: 'SELECT_WINNER',
-        winnerCard: playedCard.card,
-        winnerId: playedCard.playerId
-    })
-}
-
-const nextRound = async () => {
-    if (!isCurrentPlayerGameMaster.value || roundStatus.value !== 'WINNER') return
-
-    // Draw next black card from metadata or db? 
-    // For simplicity, let's just pick a random one or have the game master track the deck in room metadata
-    const { data: room } = await supabase
-        .from('rooms')
-        .select('metadata')
-        .eq('id', currentRoomDbId.value)
-        .single()
-    
-    const metadata = room?.metadata || {}
-    const blackDeck = metadata.blackDeck || []
-    const whiteDeck = metadata.whiteDeck || []
-
-    if (blackDeck.length === 0) {
-        authError.value = "Out of cards!"
-        return
-    }
-
-    const nextBlackCardId = blackDeck[0]
-    const newBlackDeck = blackDeck.slice(1)
-
-    // Fetch the actual card data
-    const { data: nextBlackCard } = await supabase
-        .from('cards')
-        .select('*')
-        .eq('id', nextBlackCardId)
-        .single()
-
-    await recordMove({
-        type: 'NEXT_ROUND',
-        blackCard: nextBlackCard,
-        czarIndex: (currentCzarIndex.value + 1) % players.value.length,
-        newBlackDeck
-    })
-}
-
-const handleMove = async (move) => {
-    const { type, payload } = move
-    console.log('Processing move:', type, payload)
-
-    if (type === 'START_GAME') {
-        gameStarted.value = true
-        blackCard.value = payload.blackCard
-        currentCzarIndex.value = payload.czarIndex
-        roundStatus.value = 'SELECTION'
-        playedCards.value = []
-        myPlayedCard.value = null
-        winner.value = null
-        
-        // Update room metadata with decks (only Game Master usually does this, but here we just react)
-        if (isCurrentPlayerGameMaster.value) {
-            await supabase.from('rooms').update({
-                metadata: {
-                    blackDeck: payload.decks.black,
-                    whiteDeck: payload.decks.white
-                }
-            }).eq('id', currentRoomDbId.value)
-        }
-
-        // Deal initial hand of 10 cards
-        await dealInitialHand(payload.decks.white)
-    } 
-    else if (type === 'PLAY_CARD') {
-        playedCards.value.push(payload)
-        // Check if everyone (except Czar) has played
-        const expectedPlays = players.value.length - 1
-        if (playedCards.value.length >= expectedPlays) {
-            roundStatus.value = 'JUDGING'
-        }
-    }
-    else if (type === 'SELECT_WINNER') {
-        winner.value = payload
-        roundStatus.value = 'WINNER'
-        scores.value[payload.winnerId] = (scores.value[payload.winnerId] || 0) + 1
-    }
-    else if (type === 'NEXT_ROUND') {
-        blackCard.value = payload.blackCard
-        currentCzarIndex.value = payload.czarIndex
-        roundStatus.value = 'SELECTION'
-        playedCards.value = []
-        myPlayedCard.value = null
-        winner.value = null
-
-        if (isCurrentPlayerGameMaster.value) {
-            await supabase.from('rooms').update({
-                metadata: {
-                    ... (await supabase.from('rooms').select('metadata').eq('id', currentRoomDbId.value).single()).data?.metadata,
-                    blackDeck: payload.newBlackDeck
-                }
-            }).eq('id', currentRoomDbId.value)
-        }
-
-        // Refill hand to 10
-        await refillHand()
-    }
-}
-
-const dealInitialHand = async (whiteDeckIds) => {
-    // Each player takes 10 cards based on their index in players list to avoid collisions if possible, 
-    // but better to have a central dealer. For this "simple" version, let's just fetch 10 random cards for now 
-    // or use the deck provided.
-    const playerIdx = players.value.findIndex(p => p.user_id === currentPlayerId.value)
-    const startIdx = playerIdx * 10
-    const myCardIds = whiteDeckIds.slice(startIdx, startIdx + 10)
-
-    const { data: myCards } = await supabase
-        .from('cards')
-        .select('*')
-        .in('id', myCardIds)
-    
-    hand.value = myCards || []
-}
-
-const refillHand = async () => {
-    if (hand.value.length >= 10) return
-
-    const { data: room } = await supabase
-        .from('rooms')
-        .select('metadata')
-        .eq('id', currentRoomDbId.value)
-        .single()
-    
-    const whiteDeck = room?.metadata?.whiteDeck || []
-    const needed = 10 - hand.value.length
-    
-    // This is tricky without a central lock. 
-    // In a real app, we'd use a DB function to "pop" cards from the deck.
-    // For now, let's just pick 'needed' cards from the end of the deck based on total moves or something.
-    // Simpler: just fetch some random white cards that are not in hand.
-    const { data: newCards } = await supabase
-        .from('cards')
-        .select('*')
-        .eq('is_black', false)
-        .limit(needed)
-    
-    hand.value = [...hand.value, ...(newCards || [])]
-}
-
-const leaveRoom = async () => {
-    isLeaving.value = true
-    await markMemberInactive()
-    await navigateTo('/')
-}
-
-const markMemberInactive = async () => {
-    if (!currentPlayerId.value || !currentRoomDbId.value) return
-    await supabase
-        .from('room_members')
-        .update({ is_active: false, left_at: new Date().toISOString() })
-        .eq('room_id', currentRoomDbId.value)
-        .eq('user_id', currentPlayerId.value)
-}
+let gameChannel = ref<RealtimeChannel | null>(null)
 
 onMounted(async () => {
-    authError.value = ''
-    
-    const { data: currentAuthData } = await supabase.auth.getUser()
-    let currentUser = currentAuthData.user
+   
+    /* 
+    Authentication
+    */
 
-    if (!currentUser) {
+    let currentUser
+    const { data: AuthData } = await supabase.auth.getUser()
+
+    if (!AuthData.user) {
+        console.log('No user session, creating anonymous user...')
+
         const { data: anonymousAuthData, error: anonymousAuthError } = await supabase.auth.signInAnonymously()
+        
         if (anonymousAuthError) {
-            authError.value = 'Could not create guest session.'
+            authError.value = 'Could not create guest session!'
             return
         }
+
         currentUser = anonymousAuthData.user
+    } else {
+        currentUser = AuthData.user
     }
 
-    const playerId = currentUser.id
-    currentPlayerId.value = playerId
+    if (!currentUser) {
+        authError.value = 'Failed to authenticate user.'
+        return
+    }
 
-    // Room Lookup
+    playerId.value = currentUser.id
+
+    /*
+    Join Room
+    */
+
+    // Look up the room by code and get its ID
     const { data: existingRoom } = await supabase
         .from('rooms')
         .select('id, code')
@@ -319,65 +114,184 @@ onMounted(async () => {
         return
     }
 
-    currentRoomDbId.value = existingRoom.id
+    roomId.value = existingRoom.id
 
-    // Join Room
+    // Add player to room_members table (or mark active if rejoining)
     await supabase.from('room_members').upsert({
-        room_id: existingRoom.id,
-        user_id: playerId,
+        room_id: roomId.value,
+        user_id: playerId.value,
         role: 'player',
         is_active: true,
-        left_at: null
     }, { onConflict: 'room_id,user_id' })
 
-    // Channel setup
-    gameChannel = supabase.channel(`${roomCode}`, {
-        config: { broadcast: { self: true }, presence: { key: playerId } }
+    // Join the realtime channel for this room by room ID
+    gameChannel.value = supabase.channel(`${roomCode}`, {
+        config: { broadcast: { self: true }, presence: { key: playerId.value } }
     })
 
-    gameChannel.on('presence', { event: 'sync' }, () => {
-        const newState = gameChannel.presenceState()
+    if (!gameChannel.value) {
+        authError.value = 'Failed to join game channel.'
+        return
+    }
+
+    gameChannel.value.on('presence', { event: 'sync' }, () => {
+        const newState = gameChannel.value.presenceState()
+
+        if (!newState) {
+            authError.value = 'Failed to get presence state.'
+            return
+        }
+
         players.value = Object.keys(newState)
             .map(key => newState[key][0])
             .sort((a, b) => (a.joined_at ?? 0) - (b.joined_at ?? 0))
     })
 
-    gameChannel.on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'game_moves', 
-        filter: `room_id=eq.${existingRoom.id}` 
-    }, (payload) => {
-        handleMove(payload.new)
+    gameChannel.value.on('broadcast', { event: 'cards_dealt' }, async (payload) => {
+        console.log('[EDGE] cards_dealt: ', payload)
+        const { data } = await supabase.from("hand_cards").select("*").eq("room_id", roomId.value).eq("user_id", playerId.value)
+        playerHandCards.value = data ?? []
+        console.log("playerHandCards:", playerHandCards.value)
     })
 
-    gameChannel.subscribe(async (status) => {
+    gameChannel.value.on('broadcast', { event: 'game_initialize' }, async (body) => {
+        console.log('[BROADCAST] game_initialize: ', body)
+        collectionCards.value = await supabase.from("cards").select("*").eq("collection_id", body.payload.set_id)
+        console.log("collectionCards:", collectionCards.value)
+
+    })
+
+    gameChannel.value.on('broadcast', { event: 'game_started' }, () => {
+        gameStarted.value = true
+        roundStatus.value = 'SELECTION'
+    })
+
+    // gameChannel.on('postgres_changes', {
+    //     event: 'INSERT',
+    //     schema: 'public',
+    //     table: 'game_moves',
+    //     filter: `room_id=eq.${existingRoom.id}`
+    // }, (payload) => {
+    //     handleMove(payload.new)
+    // })
+
+    gameChannel.value.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-            await gameChannel.track({
-                user_id: playerId,
+            await gameChannel.value.track({
+                user_id: playerId.value,
                 status: 'playing',
                 joined_at: Date.now()
             })
         }
     })
 
-    // Load existing moves to catch up
-    const { data: moves } = await supabase
-        .from('game_moves')
-        .select('*')
-        .eq('room_id', existingRoom.id)
-        .order('seq', { ascending: true })
-    
-    if (moves && moves.length > 0) {
-        for (const move of moves) {
-            await handleMove(move)
-        }
-    }
+    // // Load existing moves to catch up
+    // const { data: moves } = await supabase
+    //     .from('game_moves')
+    //     .select('*')
+    //     .eq('room_id', existingRoom.id)
+    //     .order('seq', { ascending: true })
+
+    // if (moves && moves.length > 0) {
+    //     for (const move of moves) {
+    //         await handleMove(move)
+    //     }
+    // }
 })
+
+// ACTION - Start game
+const startGame = async () => {
+    if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
+        if (players.value.length < 2) authError.value = 'Need at least 2 players to start.'
+        return
+    }
+
+    // Fetch available card sets and pick the first one
+    const sets = await getCardSets()
+    if (!sets || sets.length === 0) {
+        authError.value = 'No card sets available.'
+        return
+    }
+
+    gameChannel.value.send({
+        type: "broadcast",
+        event: "game_initialize",
+        payload: { set_id: sets[0].id } // For now we just hardcode a set, but you could add a UI to select one
+    })
+
+    // Get the current session token to authorise the edge function call
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+        authError.value = 'Not authenticated.'
+        return
+    }
+
+    const { data, error } = await supabase.functions.invoke('assign_hand_cards', {
+        method: 'POST',
+        body: { set_id: sets[0].id, room_id: roomId.value },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+    })
+
+    if (error) {
+        console.error('Function error', error)
+        authError.value = 'Failed to deal cards.'
+        return
+    }
+
+    console.log('Dealt cards response:', data)
+
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "game_started",
+    })
+}
+
+const recordMove = async (payload) => {
+
+}
+
+const playCard = async (card) => {
+
+}
+
+const selectWinner = async (playedCard) => {
+
+}
+
+const nextRound = async () => {
+
+}
+
+const handleMove = async (move) => {
+
+}
+
+const dealInitialHand = async (whiteDeckIds) => {
+
+}
+
+const refillHand = async () => {
+
+}
+
+const leaveRoom = async () => {
+    isLeaving.value = true
+    await markMemberInactive()
+    await navigateTo('/')
+}
+
+const markMemberInactive = async () => {
+    if (!playerId.value || !roomId.value) return
+    await supabase
+        .from('room_members')
+        .update({ is_active: false, left_at: new Date().toISOString() })
+        .eq('room_id', roomId.value)
+        .eq('user_id', playerId.value)
+}
 
 onUnmounted(() => {
     if (!isLeaving.value) markMemberInactive()
-    if (gameChannel) supabase.removeChannel(gameChannel)
+    if (gameChannel.value) supabase.removeChannel(gameChannel.value)
 })
 </script>
 
@@ -391,8 +305,7 @@ onUnmounted(() => {
                     <p class="text-sm text-gray-500">{{ players.length }} players online</p>
                 </div>
                 <div class="flex gap-2">
-                    <button v-if="!gameStarted && isCurrentPlayerGameMaster" 
-                        @click="startGame" 
+                    <button v-if="!gameStarted && isGameMaster" @click="startGame"
                         class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
                         Start Game
                     </button>
@@ -404,11 +317,11 @@ onUnmounted(() => {
 
             <!-- Player List -->
             <div class="mt-4 flex flex-wrap gap-2">
-                <div v-for="player in players" :key="player.user_id" 
+                <div v-for="player in players" :key="player.user_id"
                     class="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium"
-                    :class="currentCzarUserId === player.user_id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-50'">
-                    <span>{{ player.user_id.slice(0, 5) }}</span>
-                    <span v-if="currentCzarUserId === player.user_id" class="font-bold">CZAR</span>
+                    :class="czarId === player.user_id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-50'">
+                    <span>{{ player.user_id.slice(0, 5)}}</span>
+                    <span v-if="czarId === player.user_id" class="font-bold">CZAR</span>
                     <span class="text-gray-400">({{ scores[player.user_id] || 0 }})</span>
                 </div>
             </div>
@@ -422,8 +335,11 @@ onUnmounted(() => {
         <div v-if="gameStarted" class="space-y-8">
             <!-- Black Card -->
             <div class="flex justify-center">
-                <div v-if="blackCard" class="relative h-64 w-48 rounded-xl bg-gray-900 p-6 text-lg font-bold text-white shadow-xl">
-                    <div v-html="blackCard.text.replace(/_/g, '<span class=\'border-b-2 border-white px-4 inline-block\'></span>')"></div>
+                <div v-if="blackCard"
+                    class="relative h-64 w-48 rounded-xl bg-gray-900 p-6 text-lg font-bold text-white shadow-xl">
+                    <div
+                        v-html="blackCard.text.replace(/_/g, '<span class=\'border-b-2 border-white px-4 inline-block\'></span>')">
+                    </div>
                     <div class="absolute bottom-4 right-4 text-xs">STUW2</div>
                 </div>
             </div>
@@ -431,23 +347,25 @@ onUnmounted(() => {
             <!-- Status Message -->
             <div class="text-center">
                 <p v-if="roundStatus === 'SELECTION'" class="text-lg font-medium">
-                    {{ isCurrentPlayerCzar ? 'Waiting for players to pick...' : (myPlayedCard ? 'Waiting for others...' : 'Pick a white card!') }}
+                    {{ isCzar ? 'Waiting for players to pick...' : (myPlayedCard ? 'Waiting for others...'
+                        : 'Pick a white card!') }}
                 </p>
                 <p v-if="roundStatus === 'JUDGING'" class="text-lg font-medium text-indigo-600">
-                    {{ isCurrentPlayerCzar ? 'Pick the winner!' : 'The Czar is judging...' }}
+                    {{ isCzar ? 'Pick the winner!' : 'The Czar is judging...' }}
                 </p>
                 <div v-if="roundStatus === 'WINNER'" class="space-y-2">
                     <p class="text-xl font-bold text-emerald-600">Winner found!</p>
-                    <button v-if="isCurrentPlayerGameMaster" @click="nextRound" class="rounded-lg bg-gray-900 px-6 py-2 text-white font-semibold">
+                    <button v-if="isGameMaster" @click="nextRound"
+                        class="rounded-lg bg-gray-900 px-6 py-2 text-white font-semibold">
                         Next Round
                     </button>
                 </div>
             </div>
 
             <!-- Judging Area (Czar sees these) -->
-            <div v-if="roundStatus === 'JUDGING' || roundStatus === 'WINNER'" class="flex flex-wrap justify-center gap-4">
-                <div v-for="(play, idx) in playedCards" :key="idx" 
-                    @click="selectWinner(play)"
+            <div v-if="roundStatus === 'JUDGING' || roundStatus === 'WINNER'"
+                class="flex flex-wrap justify-center gap-4">
+                <div v-for="(play, idx) in playedCards" :key="idx" @click="selectWinner(play)"
                     class="h-64 w-48 cursor-pointer rounded-xl border-2 p-4 font-bold shadow-md transition-all hover:-translate-y-2"
                     :class="winner?.winnerId === play.playerId ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-indigo-400'">
                     {{ play.card.text }}
@@ -455,11 +373,10 @@ onUnmounted(() => {
             </div>
 
             <!-- Player Hand -->
-            <div v-if="!isCurrentPlayerCzar" class="mt-12">
+            <div v-if="!isCzar" class="mt-12">
                 <h3 class="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">Your Hand</h3>
                 <div class="flex flex-wrap justify-center gap-3">
-                    <div v-for="card in hand" :key="card.id" 
-                        @click="playCard(card)"
+                    <div v-for="card in mappedHandCards" :key="card.id" @click="playCard(card)"
                         class="h-48 w-36 cursor-pointer rounded-lg border border-gray-200 bg-white p-4 text-sm font-bold shadow-sm transition-all hover:-translate-y-2 hover:border-indigo-400 hover:shadow-md"
                         :class="myPlayedCard?.id === card.id ? 'opacity-50 grayscale' : ''">
                         {{ card.text }}
@@ -469,7 +386,8 @@ onUnmounted(() => {
         </div>
 
         <!-- Waiting for game to start -->
-        <div v-else class="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200">
+        <div v-else
+            class="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200">
             <p class="text-gray-500">Wait for the Game Master to start...</p>
         </div>
     </div>

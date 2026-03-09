@@ -27,12 +27,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useAppSupabaseClient } from '~/utils/supabase'
-
 const roomCodeInput = ref('')
 const lobbyError = ref('')
-const supabase = useAppSupabaseClient()
+const supabase = useSupabaseClient()
 
 // Nuxt's built-in navigation helper
 const navigateToRoom = async (roomCode) => {
