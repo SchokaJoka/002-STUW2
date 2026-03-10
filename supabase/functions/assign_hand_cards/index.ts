@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
 
     // Get room members
     const { data: members, error: membersErr } = await supabase
-      .from('room_member')
+      .from('room_members')
       .select('user_id')
       .eq('room_id', room_id);
     if (membersErr) throw membersErr;
@@ -36,7 +36,7 @@ Deno.serve(async (req: Request) => {
     const { data: cards, error: cardsErr } = await supabase
       .from('cards')
       .select('id')
-      .eq('set_id', set_id)
+      .eq('collection_id', set_id)
       .eq('is_black', false);
     if (cardsErr) throw cardsErr;
     if (!cards || cards.length === 0) {
@@ -73,7 +73,7 @@ Deno.serve(async (req: Request) => {
     let remainingInsertResult = null;
     if (remainingCardIds.length > 0) {
       const remainingInserts = remainingCardIds.map(id => ({ card_id: id, room_id, created_at: new Date().toISOString() }));
-      const { data: remData, error: remErr } = await supabase.from('remaining_cards').insert(remainingInserts).select('*');
+      const { data: remData, error: remErr } = await supabase.from('remaining_white_cards').insert(remainingInserts).select('*');
       if (remErr) throw remErr;
       remainingInsertResult = remData;
     }
@@ -81,22 +81,34 @@ Deno.serve(async (req: Request) => {
     // Get room code for channel
     const { data: room, error: roomErr } = await supabase.from('rooms').select('code').eq('id', room_id).single();
     if (roomErr) throw roomErr;
-    const channel = room.code;
+    const channelCode = room.code;
 
 
-
-
-    const payload = { event: 'cards_dealt', room_id, set_id };
+/*
+    const payload = { room_id, set_id };
+    try {
+      await supabase.rpc('realtime_broadcast', { _topic: channel, _event: 'cards_dealt', _payload: JSON.stringify(payload) });
+    } catch (e) {
+      broadcastWarning = 'Broadcast RPC failed or not available. Ensure a broadcast SQL function exists.';
+    }
+*/
     let broadcastWarning = null;
 
-    supabase.channel(channelCode)
 
-    // try {
-    //   await supabase.rpc('realtime_broadcast', { _topic: channel, _event: 'cards_dealt', _payload: JSON.stringify(payload) });
-    // } catch (e) {
-    //   broadcastWarning = 'Broadcast RPC failed or not available. Ensure a broadcast SQL function exists.';
-    // }
-
+    const channel = supabase.channel(channelCode)
+    await new Promise<void>((resolve) => {
+      channel.subscribe((status) => {
+        if (status !== 'SUBSCRIBED') {
+          resolve()
+          return
+        }
+        channel.send({
+          type: 'broadcast',
+          event: 'cards_dealt',
+        }).finally(() => resolve())
+      })
+    })
+    
     const result = { dealt: insertData.length, remaining: remainingCardIds.length, warning: broadcastWarning };
     return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (err) {

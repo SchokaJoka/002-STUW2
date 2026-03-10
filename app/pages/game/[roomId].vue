@@ -89,6 +89,7 @@ onMounted(async () => {
         currentUser = anonymousAuthData.user
     } else {
         currentUser = AuthData.user
+        console.log('Existing user session found:', currentUser)
     }
 
     if (!currentUser) {
@@ -179,6 +180,7 @@ onMounted(async () => {
         if (status === 'SUBSCRIBED') {
             await gameChannel.value.track({
                 user_id: playerId.value,
+                user_name: currentUser.user_metadata.full_name || 'Guest',
                 status: 'playing',
                 joined_at: Date.now()
             })
@@ -320,7 +322,7 @@ onUnmounted(() => {
                 <div v-for="player in players" :key="player.user_id"
                     class="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium"
                     :class="czarId === player.user_id ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-50'">
-                    <span>{{ player.user_id.slice(0, 5)}}</span>
+                    <span>{{ player.user_name }}</span>
                     <span v-if="czarId === player.user_id" class="font-bold">CZAR</span>
                     <span class="text-gray-400">({{ scores[player.user_id] || 0 }})</span>
                 </div>
