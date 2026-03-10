@@ -3,9 +3,9 @@
     <div>
       <h1>Cards Against Humanity</h1>
       <!-- show name if user is logged in otherwise show you're playing as a guest -->
-      <p v-if="user.value">
+      <p v-if="user">
         Playing as:
-        {{ user.value.user_metadata.full_name }}
+        {{ user.user_metadata.full_name }}
       </p>
       <p v-else>Playing as: Guest</p>
     </div>
