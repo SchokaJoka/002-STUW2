@@ -16,38 +16,62 @@ export type Database = {
     Tables: {
       cards: {
         Row: {
+          collection_id: string | null
           created_at: string
           id: string
           is_black: boolean
-          set_id: string | null
           text: string
           updated_at: string | null
         }
         Insert: {
+          collection_id?: string | null
           created_at?: string
           id?: string
           is_black: boolean
-          set_id?: string | null
           text: string
           updated_at?: string | null
         }
         Update: {
+          collection_id?: string | null
           created_at?: string
           id?: string
           is_black?: boolean
-          set_id?: string | null
           text?: string
           updated_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "cards_set_id_fkey"
-            columns: ["set_id"]
+            columns: ["collection_id"]
             isOneToOne: false
-            referencedRelation: "sets"
+            referencedRelation: "collections"
             referencedColumns: ["id"]
           },
         ]
+      }
+      collections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       game_moves: {
         Row: {
@@ -84,6 +108,117 @@ export type Database = {
           },
         ]
       }
+      hand_cards: {
+        Row: {
+          card_id: string | null
+          created_at: string
+          id: string
+          room_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hand_cards_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hand_cards_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remaining_black_cards: {
+        Row: {
+          card_id: string | null
+          created_at: string
+          id: string
+          room_id: string | null
+        }
+        Insert: {
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          room_id?: string | null
+        }
+        Update: {
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          room_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remaining_black_cards_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remaining_black_cards_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remaining_white_cards: {
+        Row: {
+          card_id: string | null
+          created_at: string
+          id: string
+          room_id: string | null
+        }
+        Insert: {
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          room_id?: string | null
+        }
+        Update: {
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          room_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remaining_cards_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remaining_cards_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_members: {
         Row: {
           id: string
@@ -96,7 +231,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          is_active?: boolean
+          is_active: boolean
           joined_at?: string | null
           left_at?: string | null
           role?: string | null
@@ -143,30 +278,6 @@ export type Database = {
           id?: string
           metadata?: Json | null
           owner?: string
-        }
-        Relationships: []
-      }
-      sets: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          updated_at?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }

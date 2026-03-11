@@ -1,15 +1,20 @@
-export const useCards = () => {
-  const { $supabase } = useNuxtApp();
+import type { Tables } from '../../types/database.types'
 
-  if (!$supabase) {
+export type CardCollection = Tables<'collections'>
+export type Card = Tables<'cards'>
+
+export const useCards = () => {
+  const supabase = useSupabaseClient();
+
+  if (!supabase) {
     console.error("Supabase client not initialized");
     throw new Error("Supabase client not available");
   }
 
   // Fetch all card sets
-  const getCardSets = async () => {
-    const { data, error } = await $supabase
-      .from("sets")
+  const getCardCollections = async () => {
+    const { data, error } = await supabase
+      .from("collections")
       .select("*")
       .order("name");
 
@@ -18,12 +23,14 @@ export const useCards = () => {
       return [];
     }
 
-    return data as Set[];
+    console.log("Fetched card sets:", data);
+
+    return data as CardCollection[];
   };
 
   // Fetch black cards for a specific set
   const getBlackCards = async (setId: string) => {
-    const { data, error } = await $supabase
+    const { data, error } = await supabase
       .from("cards")
       .select("*")
       .eq("set_id", setId)
@@ -34,12 +41,12 @@ export const useCards = () => {
       return [];
     }
 
-    return data as BlackCard[];
+    return data as Card[];
   };
 
   // Fetch white cards for a specific set
   const getWhiteCards = async (setId: string) => {
-    const { data, error } = await $supabase
+    const { data, error } = await supabase
       .from("cards")
       .select("*")
       .eq("set_id", setId)
@@ -50,13 +57,13 @@ export const useCards = () => {
       return [];
     }
 
-    return data as WhiteCard[];
+    return data as Card[];
   };
 
   // Fetch a set with all its cards
-  const getSetWithCards = async (setId: string) => {
+  const getCollectionWithCards = async (setId: string) => {
     const [set, blackCards, whiteCards] = await Promise.all([
-      $supabase.from("sets").select("*").eq("id", setId).single(),
+      supabase.from("sets").select("*").eq("id", setId).single(),
       getBlackCards(setId),
       getWhiteCards(setId),
     ]);
@@ -67,7 +74,7 @@ export const useCards = () => {
     }
 
     return {
-      set: set.data as Set,
+      set: set.data as CardCollection,
       blackCards,
       whiteCards,
       totalCards: blackCards.length + whiteCards.length,
@@ -96,7 +103,7 @@ export const useCards = () => {
 
   // Create a custom card set
   const createCustomSet = async (name: string, userId: string) => {
-    const { data, error } = await $supabase
+    const { data, error } = await supabase
       .from("sets")
       .insert({
         name,
@@ -110,12 +117,12 @@ export const useCards = () => {
       return null;
     }
 
-    return data as Set;
+    return data as CardCollection;
   };
 
   // Add custom black card
   const addBlackCard = async (setId: string, text: string) => {
-    const { data, error } = await $supabase
+    const { data, error } = await supabase
       .from("cards")
       .insert({
         set_id: setId,
@@ -130,12 +137,12 @@ export const useCards = () => {
       return null;
     }
 
-    return data as BlackCard;
+    return data as Card;
   };
 
   // Add custom white card
   const addWhiteCard = async (setId: string, text: string) => {
-    const { data, error } = await $supabase
+    const { data, error } = await supabase
       .from("cards")
       .insert({
         set_id: setId,
@@ -150,14 +157,14 @@ export const useCards = () => {
       return null;
     }
 
-    return data as WhiteCard;
+    return data as Card;
   };
 
   return {
-    getCardSets,
+    getCardSets: getCardCollections,
     getBlackCards,
     getWhiteCards,
-    getSetWithCards,
+    getSetWithCards: getCollectionWithCards,
     getCardsFromSets,
     createCustomSet,
     addBlackCard,
@@ -176,3 +183,4 @@ function shuffleArray<T>(array: T[]): T[] {
   }
   return shuffled;
 }
+
