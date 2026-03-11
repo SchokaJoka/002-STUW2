@@ -79,6 +79,11 @@ const mode = ref<'login' | 'signup' | 'anonymous'>('login');
 const errorMessage = ref('');
 const successMessage = ref('');
 const loading = ref(false);
+const user = useSupabaseUser();
+
+onMounted(() => {
+  console.log("User, ", user.value);
+});
 
 const getRedirectPath = () => {
   if(route.query.redirect === 'createGame') {
@@ -178,6 +183,13 @@ const handleSignUp = async () => {
 const handleAnonymousLogin = async () => {
   errorMessage.value = '';
   successMessage.value = '';
+
+
+  // NEW JOEY LOGIC: If user is already logged in anonymously, just redirect to lobby (or intended page)
+  if (user.value && user.value.is_anonymous) {
+    navigateTo(getRedirectPath());
+    return;
+  }
 
   if (!username.value || username.value.length < 3) {
     errorMessage.value = 'Username must be at least 3 characters';
