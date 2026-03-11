@@ -1,5 +1,7 @@
 <template>
-  <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+  <div
+    class="flex flex-col items-center justify-center min-h-screen bg-gray-100"
+  >
     <div class="absolute top-4 right-4">
       <button
         @click="handleAuthAction"
@@ -10,8 +12,13 @@
     </div>
     <h1 class="text-4xl font-bold mb-2">Cards Against Humanity</h1>
     <p class="text-gray-500 mb-8">
-      <span v-if="user">Playing as: <span class="font-semibold text-gray-700">{{ user.user_metadata.full_name }}</span></span>
-      <span v-else>Playing as: Guest</span>
+      <span v-if="user"
+        >Playing as:
+        <span class="font-semibold text-gray-700">{{
+          user.user_metadata.full_name
+        }}</span></span
+      >
+      <span v-else>Playing as: Guest {{ currentUser?.id }}</span>
     </p>
 
     <div class="bg-white p-8 rounded shadow-md w-96">
@@ -41,7 +48,9 @@
         Join Room
       </button>
 
-      <p v-if="lobbyError" class="text-red-500 mt-4 text-sm">{{ lobbyError }}</p>
+      <p v-if="lobbyError" class="text-red-500 mt-4 text-sm">
+        {{ lobbyError }}
+      </p>
     </div>
   </div>
 </template>
@@ -134,5 +143,3 @@ const handleAuthAction = async () => {
   }
 };
 </script>
-
-
