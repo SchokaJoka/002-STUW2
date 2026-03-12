@@ -67,6 +67,7 @@
       </button>
 
       <button
+        v-if="mode !== 'anonymous'"
         @click="setMode(mode === 'login' ? 'signup' : 'login')"
         class="w-full my-2 px-6 py-3 text-blue-500 border border-blue-500 rounded hover:bg-blue-50"
         :disabled="loading"
@@ -79,17 +80,12 @@
       </button>
 
       <button
+        v-if="mode !== 'anonymous' && !user?.is_anonymous"
         @click="setMode(mode === 'anonymous' ? 'login' : 'anonymous')"
         class="w-full my-2 px-6 py-3 text-purple-500 border border-purple-500 rounded hover:bg-purple-50"
         :disabled="loading"
       >
-        {{
-          mode === "anonymous"
-            ? "Cancel Guest Login"
-            : user && user.is_anonymous && user.user_metadata?.full_name
-              ? "Change Name"
-              : "Continue as Guest"
-        }}
+        {{ mode === "anonymous" ? "Cancel Guest Login" : "Continue as Guest" }}
       </button>
 
       <button
