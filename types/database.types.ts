@@ -225,8 +225,10 @@ export type Database = {
           is_active: boolean
           joined_at: string | null
           left_at: string | null
+          metadata: Json | null
           role: string | null
           room_id: string
+          status: string | null
           user_id: string
         }
         Insert: {
@@ -234,8 +236,10 @@ export type Database = {
           is_active: boolean
           joined_at?: string | null
           left_at?: string | null
+          metadata?: Json | null
           role?: string | null
           room_id: string
+          status?: string | null
           user_id: string
         }
         Update: {
@@ -243,8 +247,10 @@ export type Database = {
           is_active?: boolean
           joined_at?: string | null
           left_at?: string | null
+          metadata?: Json | null
           role?: string | null
           room_id?: string
+          status?: string | null
           user_id?: string
         }
         Relationships: [
