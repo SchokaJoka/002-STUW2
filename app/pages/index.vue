@@ -3,17 +3,17 @@
     class="flex flex-col items-center justify-center min-h-screen bg-gray-100"
   >
     <div class="absolute top-4 right-4 flex items-center space-x-4">
-      <div
-        class="px-4 py-2 text-gray-500 rounded"
-      >
-      <span class="font-bold">{{ user?.user_metadata?.full_name || '' }}</span>
-      <span v-if="user?.is_anonymous" class="ml-1">(Guest)</span>
+      <div class="px-4 py-2 text-gray-500 rounded">
+        <span class="font-bold">{{
+          user?.user_metadata?.full_name || ""
+        }}</span>
+        <span v-if="user?.is_anonymous" class="ml-1">(Guest)</span>
       </div>
       <button
         @click="handleAuthAction"
         class="px-4 py-2 text-gray-500 border border-gray-300 rounded hover:bg-gray-50"
       >
-      {{ user && !user.is_anonymous ? "Logout" : "Login" }}
+        {{ user && !user.is_anonymous ? "Logout" : "Login" }}
       </button>
     </div>
     <h1 class="text-4xl font-bold mb-2">Cards Against Humanity</h1>
@@ -60,10 +60,9 @@ const user = useSupabaseUser();
 const route = useRoute();
 
 onMounted(async () => {
-
   console.log("User, ", user.value);
 
-  if (route.query.action === 'createGame') {
+  if (route.query.action === "createGame") {
     await createGame();
   }
 });
@@ -126,7 +125,6 @@ const joinGame = async () => {
 };
 
 const handleAuthAction = async () => {
-
   if (user.value && !user.value.is_anonymous) {
     // User is logged in, so log them out
     await supabase.auth.signOut();
