@@ -208,14 +208,11 @@ const handleSignUp = async () => {
 
     loading.value = false;
 
-
     if (updateError) {
       errorMessage.value = updateError.message;
       console.error("Convert anonymous user error:", updateError);
     } else {
-
-      await supabase.auth.refreshSession()
-      
+      await supabase.auth.refreshSession();
 
       successMessage.value = "Account created successfully! Redirecting...";
       setTimeout(() => {
