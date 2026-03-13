@@ -5,7 +5,7 @@
     <!-- Back button -->
     <div class="absolute top-4 left-4">
       <button
-        @click="$router.push('/')"
+        @click="navigateTo(`/`)"
         class="px-4 py-2 text-gray-500 border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-2"
       >
         ← Back to Lobby
@@ -66,19 +66,6 @@
           {{ successMessage }}
         </p>
       </template>
-
-      <!-- Redirect if not authenticated or anonymous -->
-      <template v-else>
-        <p class="text-gray-600 mb-4">
-          You need to be logged in to view this page.
-        </p>
-        <button
-          @click="$router.push('/login')"
-          class="w-full px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Go to Login
-        </button>
-      </template>
     </div>
   </div>
 </template>
@@ -86,33 +73,25 @@
 <script setup lang="ts">
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
-const router = useRouter();
 
 const username = ref("");
 const errorMessage = ref("");
 const successMessage = ref("");
 const loading = ref(false);
 
-// Initialize username from user data
+// update username with supabase user
 watch(
   user,
   (newUser) => {
     if (newUser && !newUser.is_anonymous) {
       username.value = newUser.user_metadata?.full_name || "";
-    } else if (newUser?.is_anonymous) {
-      // Redirect anonymous users back to lobby
-      router.push("/");
+    } else if (newUser?.is_anonymous || !newUser) {
+      console.log("User is anonymous or not logged in, redirecting to lobby");
+      navigateTo(`/`);
     }
   },
   { immediate: true },
 );
-
-// Redirect if not logged in
-onMounted(() => {
-  if (!user.value || user.value.is_anonymous) {
-    router.push("/");
-  }
-});
 
 const getInitials = (name: string | undefined) => {
   if (!name) return "?";
@@ -154,6 +133,6 @@ const updateProfile = async () => {
 
 const handleLogout = async () => {
   await supabase.auth.signOut();
-  router.push("/");
+  // navigateTo(`/`);
 };
 </script>

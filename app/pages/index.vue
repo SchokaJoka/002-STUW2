@@ -1,11 +1,11 @@
 <template>
   <div
-    class="flex flex-col items-center justify-center min-h-screen bg-gray-100"
+    class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4"
   >
-    <div class="absolute top-4 right-4 flex items-center space-x-4">
+    <div class="absolute top-4 w-svw flex items-center justify-end space-x-4 px-4">
       <!-- Guest: Editable name -->
       <template v-if="user?.is_anonymous">
-        <div class="px-4 py-2 text-gray-500 rounded flex items-center gap-2">
+        <div class="px-4 py-2 text-gray-500 rounded w-full flex items-center justify-end gap-2">
           <template v-if="editingGuestName">
             <input
               v-model="guestNameEdit"
@@ -16,14 +16,15 @@
               ref="guestNameInput"
             />
           </template>
-          <template v-else>
-            <span
-              @click="startEditGuestName"
-              class="font-bold cursor-pointer hover:text-blue-500"
-              title="Click to edit name"
-            >
-              {{ user?.user_metadata?.full_name || "Guest" }}
-
+          <template v-else class="">
+            <button @click="startEditGuestName" class="w-fit flex flew-row items-center gap-1 cursor-pointer hover:text-blue-500">
+              <span
+                class="font-bold"
+                title="Click to edit name"
+              >
+                {{ user?.user_metadata?.full_name || "Guest" }}
+  
+              </span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-4 w-4"
@@ -38,9 +39,10 @@
                   d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                 />
               </svg>
-            </span>
+            </button>
+            <span>(Guest)</span>
           </template>
-          <span>(Guest)</span>
+          
         </div>
         <button
           @click="handleAuthAction"
@@ -74,8 +76,7 @@
 
     <h1 class="text-4xl font-bold mb-2">Cards Against Humanity</h1>
 
-    <!-- Rest of your code stays the same -->
-    <div class="bg-white p-8 rounded shadow-md w-96">
+    <div class="bg-white p-8 rounded">
       <h2 class="text-xl font-semibold mb-4">Start new Game</h2>
       <button
         @click="createGame"
@@ -139,7 +140,7 @@ const getInitials = (name) => {
 };
 
 const goToProfile = () => {
-  navigateTo(`/${user.value.id}`);
+  navigateTo(`/settings`);
 };
 
 const startEditGuestName = () => {

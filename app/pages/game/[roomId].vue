@@ -146,7 +146,7 @@ onMounted(async () => {
   gameChannel.value.on(
     "broadcast",
     { event: "cards_dealt" },
-    async (payload) => {
+    async () => {
       console.log("[BROADCAST] cards_dealt");
       const { data } = await supabase
         .from("hand_cards")
