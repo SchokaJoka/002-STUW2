@@ -26,7 +26,8 @@ const hand = ref([]);
 const collectionCards = ref<any>({});
 const blackCard = ref({});
 const playedCards = ref([]); // Cards played by others this round
-const myPlayedCard = ref<any[]>([]);
+const myPlayedCards = ref<any[]>([]);
+const submittedWhiteCards = ref<any[]>([]);
 const winner = ref(null);
 const roundStatus = ref("lobby"); // LOBBY, SELECTION, JUDGING, WINNER
 const scores = ref({});
@@ -57,8 +58,29 @@ const isCzar = computed(() => {
   return !!playerId.value && playerId.value === czarId.value;
 });
 
-onMounted(async () => {
+const numberOfCardsToPlay = computed(() => {
+  if (!blackCard.value) return null;
+  if (blackCard.value.number_of_gaps === null) {
+    console.warn("Black card missing number_of_gaps:", blackCard.value);
+    return null;
+  }
+  if (blackCard.value.number_of_gaps === 0) return 1; // If 0, card is a question. 1 card must be played.
+  return blackCard.value.number_of_gaps;
+});
 
+const availableCollectionCards = computed(() => {
+  if (Array.isArray(collectionCards.value?.data))
+    return collectionCards.value.data;
+  if (Array.isArray(collectionCards.value)) return collectionCards.value;
+  return [];
+});
+
+const getCardTextById = (cardId: string) => {
+  const card = availableCollectionCards.value.find((c: any) => c.id === cardId);
+  return card?.text || "Unknown card";
+};
+
+onMounted(async () => {
   // Look up the room by code and get its ID
   // ===============================================================
   const { data: roomData } = await supabase
@@ -79,7 +101,6 @@ onMounted(async () => {
   // ===============================================================
   if (!user.value) {
     navigateTo("/login?redirect=joinGame&roomCode=" + roomCode);
-
   } else {
     console.log("Existing user session found:", user.value);
     playerId.value = user.value.sub;
@@ -115,7 +136,6 @@ onMounted(async () => {
   }
   // ===============================================================
 
-
   // Join the realtime channel for this room by room ID
   // ===============================================================
   gameChannel.value = supabase.channel(`${roomCode}`, {
@@ -143,20 +163,16 @@ onMounted(async () => {
       .sort((a, b) => (a.joined_at ?? 0) - (b.joined_at ?? 0));
   });
 
-  gameChannel.value.on(
-    "broadcast",
-    { event: "cards_dealt" },
-    async () => {
-      console.log("[BROADCAST] cards_dealt");
-      const { data } = await supabase
-        .from("hand_cards")
-        .select("*")
-        .eq("room_id", roomId.value)
-        .eq("user_id", playerId.value);
-      playerHandCards.value = data ?? [];
-      console.log("playerHandCards:", playerHandCards.value);
-    },
-  );
+  gameChannel.value.on("broadcast", { event: "cards_dealt" }, async () => {
+    console.log("[BROADCAST] cards_dealt");
+    const { data } = await supabase
+      .from("hand_cards")
+      .select("*")
+      .eq("room_id", roomId.value)
+      .eq("user_id", playerId.value);
+    playerHandCards.value = data ?? [];
+    console.log("playerHandCards:", playerHandCards.value);
+  });
 
   gameChannel.value.on(
     "broadcast",
@@ -201,8 +217,9 @@ onMounted(async () => {
   });
   // ===============================================================
 
+  // Game already in progress, sync to current state
+  // ===============================================================
   if (roomData.metadata?.round_status !== "lobby") {
-    // Game already in progress, sync to current state
     const { data: handCardsData } = await supabase
       .from("hand_cards")
       .select("*")
@@ -220,9 +237,11 @@ onMounted(async () => {
     gameStarted.value = true;
     roundStatus.value = roomData.metadata.round_status;
     blackCard.value = roomData.metadata.black_card;
+    gameState.value = roomData.metadata;
 
     console.log("collectionCards:", collectionCards.value);
   }
+  // ===============================================================
 
   // // Load existing moves to catch up
   // const { data: moves } = await supabase
@@ -294,32 +313,93 @@ const startGame = async () => {
 
 async function handleGameStateChanges(newState: object) {
   gameState.value = newState.metadata;
+  roundStatus.value = newState.metadata.round_status;
 
   if (newState.metadata.round_status === "round_start") {
     handleRoundStart(newState);
   }
+  if (newState.metadata.round_status === "round_submitted") {
+    handleRoundSubmitted(newState);
+  }
 
-  console.log("Czar ID: ", czarId.value);
-  console.log("IsCzar: ", isCzar.value);
+  // console.log("Czar ID: ", czarId.value);
+  // console.log("IsCzar: ", isCzar.value);
 }
 
 async function handleRoundStart(newState: object) {
-  roundStatus.value = "round_start";
   blackCard.value = newState.metadata.black_card;
   console.log("Black card for this round:", blackCard.value);
 }
 
-const submitWhiteCards = async () => {
+async function handleRoundSubmitted(newState: object) {
+  const { data, error } = await supabase
+    .from("room_members")
+    .select("*")
+    .eq("room_id", roomId.value)
+    .neq("user_id", czarId.value);
 
-};
+  if (error) {
+    console.error("Error loading submitted white cards:", error);
+    return;
+  }
+
+  submittedWhiteCards.value = data ?? [];
+  console.log("submittedWhiteCards: ", submittedWhiteCards.value);
+}
 
 const chooseCard = async (card) => {
   if (isCzar.value) return;
-  const idx = myPlayedCard.value.findIndex((c) => c.id === card.id);
+
+  console.log("Choosing card: ", card);
+
+  const idx = myPlayedCards.value.findIndex((c) => c.id === card.id);
   if (idx === -1) {
-    myPlayedCard.value.push(card);
+    if (myPlayedCards.value.length === numberOfCardsToPlay.value) {
+      console.log("[MYPLAYEDCARDS] replacing the oldest one with the new");
+      myPlayedCards.value.shift(); // Remove the oldest played card from hand
+      myPlayedCards.value.push(card); // Add the new card to the end of the array
+
+      return;
+    }
+
+    myPlayedCards.value.push(card);
+    console.log("[MYPLAYEDCARDS] Pushed a new card", myPlayedCards.value);
   } else {
-    myPlayedCard.value.splice(idx, 1);
+    myPlayedCards.value.splice(idx, 1);
+    console.log("[MYPLAYEDCARDS] Deleted a card: ", myPlayedCards.value);
+  }
+};
+
+const submitWhiteCards = async () => {
+  if (myPlayedCards.value.length === numberOfCardsToPlay.value) {
+    const { data, error } = await supabase.functions.invoke(
+      "submit_white_cards",
+      {
+        method: "POST",
+        body: {
+          czar_id: czarId.value,
+          user_id: playerId.value,
+          room_id: roomId.value,
+          submitted_cards: myPlayedCards.value,
+        },
+      },
+    );
+
+    if (error) {
+      console.error("Error submitting white cards:", error);
+    } else {
+      const submittedIds = new Set(myPlayedCards.value.map((c) => c.id));
+      playerHandCards.value = playerHandCards.value.filter(
+        (handCard) => !submittedIds.has(handCard.id),
+      );
+      myPlayedCards.value = [];
+
+      console.log("Submitted white cards successfully");
+    }
+  } else {
+    console.warn(
+      `Must select exactly ${numberOfCardsToPlay.value} cards to submit`,
+    );
   }
 };
 
@@ -364,17 +444,20 @@ onUnmounted(() => {
           <p class="text-sm text-gray-500">
             {{ players.length }} players online
           </p>
-          <p class="text-sm text-blue-500">
-            ({{ roundStatus }})
-          </p>
+          <p class="text-sm text-blue-500">({{ roundStatus }})</p>
         </div>
         <div class="flex gap-2">
-          <button v-if="!gameStarted && isGameMaster" @click="startGame"
-            class="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600">
+          <button
+            v-if="!gameStarted && isGameMaster"
+            @click="startGame"
+            class="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600"
+          >
             Start Game
           </button>
-          <button @click="leaveRoom"
-            class="px-4 py-2 text-gray-500 border border-gray-300 text-sm rounded hover:bg-gray-50">
+          <button
+            @click="leaveRoom"
+            class="px-4 py-2 text-gray-500 border border-gray-300 text-sm rounded hover:bg-gray-50"
+          >
             Leave
           </button>
         </div>
@@ -382,11 +465,16 @@ onUnmounted(() => {
 
       <!-- Player List -->
       <div class="flex flex-wrap gap-2">
-        <div v-for="player in players" :key="player.user_id"
-          class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium" :class="czarId === player.user_id
-            ? 'bg-blue-50 border-blue-200 text-blue-700'
-            : 'bg-gray-50 border-gray-200 text-gray-600'
-            ">
+        <div
+          v-for="player in players"
+          :key="player.user_id"
+          class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium"
+          :class="
+            czarId === player.user_id
+              ? 'bg-blue-50 border-blue-200 text-blue-700'
+              : 'bg-gray-50 border-gray-200 text-gray-600'
+          "
+        >
           <span>{{ player.user_name }}</span>
           <span v-if="czarId === player.user_id" class="font-bold">CZAR</span>
           <span class="text-gray-400">({{ scores[player.user_id] || 0 }})</span>
@@ -400,7 +488,10 @@ onUnmounted(() => {
     <div v-if="gameStarted" class="w-full max-w-2xl space-y-6">
       <!-- Black Card -->
       <div class="flex justify-center">
-        <div v-if="blackCard" class="relative h-64 w-48 rounded bg-gray-900 p-6 text-lg font-bold text-white shadow-md">
+        <div
+          v-if="blackCard"
+          class="relative h-64 w-48 rounded bg-gray-900 p-6 text-lg font-bold text-white shadow-md"
+        >
           <div>
             {{ blackCard.text }}
           </div>
@@ -410,48 +501,81 @@ onUnmounted(() => {
 
       <!-- Status Message -->
       <div class="bg-white rounded shadow-md p-6 text-center">
-        <p v-if="roundStatus === 'round_start'" class="text-lg font-medium text-gray-700">
+        <p
+          v-if="roundStatus === 'round_start'"
+          class="text-lg font-medium text-gray-700"
+        >
           {{
             isCzar
               ? "Waiting for players to pick..."
-              : myPlayedCard.length > 0
+              : myPlayedCards.length > 0
                 ? "Waiting for others..."
                 : "Pick a white card!"
           }}
         </p>
-        <p v-if="roundStatus === 'JUDGING'" class="text-lg font-medium text-blue-600">
+        <p
+          v-if="roundStatus === 'JUDGING'"
+          class="text-lg font-medium text-blue-600"
+        >
           {{ isCzar ? "Pick the winner!" : "The Czar is judging..." }}
         </p>
         <div v-if="roundStatus === 'WINNER'" class="space-y-3">
           <p class="text-xl font-bold text-green-600">Winner found!</p>
-          <button v-if="isGameMaster" @click="nextRound"
-            class="px-6 py-2 bg-blue-500 text-white font-semibold rounded hover:bg-blue-600">
+          <button
+            v-if="isGameMaster"
+            @click="nextRound"
+            class="px-6 py-2 bg-blue-500 text-white font-semibold rounded hover:bg-blue-600"
+          >
             Next Round
           </button>
         </div>
       </div>
 
       <!-- Judging Area -->
-      <div v-if="roundStatus === 'JUDGING' || roundStatus === 'WINNER'" class="flex flex-wrap justify-center gap-4">
-        <div v-for="(play, idx) in playedCards" :key="idx" @click="selectWinner(play)"
+      <div
+        v-if="roundStatus === 'round_submitted' || roundStatus === 'WINNER'"
+        class="flex flex-wrap justify-center gap-4"
+      >
+        <div
+          v-for="play in submittedWhiteCards"
+          :key="play.id"
+          @click="selectWinner(play)"
           class="h-64 w-48 cursor-pointer rounded border-2 bg-white p-4 font-bold shadow-md transition-all hover:-translate-y-2"
-          :class="winner?.winnerId === play.playerId
-            ? 'border-green-500 bg-green-50'
-            : 'border-gray-200 hover:border-blue-400'
-            ">
-          {{ play.card.text }}
+          :class="
+            winner?.winnerId === play.user_id
+              ? 'border-green-500 bg-green-50'
+              : 'border-gray-200 hover:border-blue-400'
+          "
+        >
+          <div
+            v-for="cardId in play.metadata?.submitted_cards || []"
+            :key="`${play.id}-${cardId}`"
+            class="mb-2 rounded bg-gray-50 p-2 text-sm"
+          >
+            {{ getCardTextById(cardId) }}
+          </div>
         </div>
       </div>
 
       <!-- Player Hand -->
       <div v-if="!isCzar">
-        <h3 class="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">
+        <h3
+          class="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-gray-500"
+        >
           Your Hand
         </h3>
         <div class="flex flex-wrap justify-center gap-3">
-          <div v-for="card in playerHandCards" :key="card.id" @click="chooseCard(card)"
-            class="h-48 w-36 cursor-pointer rounded border border-gray-200 bg-white p-4 text-sm font-bold shadow-sm transition-all hover:-translate-y-2 hover:border-blue-400 hover:shadow-md"
-            :class="myPlayedCard.some((c) => c.id === card.id) ? 'opacity-50 grayscale' : ''">
+          <div
+            v-for="card in playerHandCards"
+            :key="card.id"
+            @click="chooseCard(card)"
+            class="h-48 w-36 cursor-pointer rounded border border-gray-200 p-4 text-sm font-bold shadow-sm transition-all hover:-translate-y-2 hover:border-blue-400 hover:shadow-md"
+            :class="
+              myPlayedCards.some((c) => c.id === card.id)
+                ? 'opacity-50 grayscale'
+                : 'bg-white'
+            "
+          >
             {{
               (collectionCards.data || []).find((c) => c.id === card.card_id)
                 ?.text || "Loading..."
@@ -462,13 +586,21 @@ onUnmounted(() => {
     </div>
 
     <!-- Waiting for game to start -->
-    <div v-else class="bg-white rounded shadow-md w-full max-w-2xl p-12 flex flex-col items-center justify-center">
+    <div
+      v-else
+      class="bg-white rounded shadow-md w-full max-w-2xl p-12 flex flex-col items-center justify-center"
+    >
       <p class="text-gray-500">Waiting for the Game Master to start...</p>
     </div>
 
-    <div v-if="gameStarted && !isCzar" class="fixed bottom-8 flex items-center space-x-4">
-      <button @click="submitWhiteCards"
-        class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600">
+    <div
+      v-if="gameStarted && !isCzar"
+      class="fixed bottom-8 flex items-center space-x-4"
+    >
+      <button
+        @click="submitWhiteCards"
+        class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600"
+      >
         Submit
       </button>
     </div>
