@@ -73,10 +73,13 @@
         </button>
       </template>
     </div>
-
     <h1 class="text-4xl font-bold mb-2">Cards Against Humanity</h1>
+    <p class="text-gray-500 mb-8">
+      <span v-if="user">Playing as: <span class="font-semibold text-gray-700">{{ user.user_metadata.full_name }}</span></span>
+      <span v-else>Playing as: Guest</span>
+    </p>
 
-    <div class="bg-white p-8 rounded">
+    <div class="bg-white p-8 rounded shadow-md w-96">
       <h2 class="text-xl font-semibold mb-4">Start new Game</h2>
       <button
         @click="createGame"
@@ -103,10 +106,12 @@
         Join Room
       </button>
 
-      <p v-if="lobbyError" class="text-red-500 mt-4 text-sm">
-        {{ lobbyError }}
-      </p>
+      <p v-if="lobbyError" class="text-red-500 mt-4 text-sm">{{ lobbyError }}</p>
     </div>
+
+    <p v-if="lobbyError" class="error-text">
+      {{ lobbyError }}
+    </p>
   </div>
 </template>
 
@@ -172,52 +177,52 @@ const saveGuestName = async () => {
 
 // Nuxt's built-in navigation helper
 const navigateToRoom = async (roomCode) => {
-  await navigateTo(`/game/${roomCode}`);
-};
+  await navigateTo(`/game/${roomCode}`)
+}
 
 // Generates a random 4-character string for easy sharing
 const generateRoomCode = () => {
-  return Math.random().toString(36).substring(2, 6).toUpperCase();
-};
+  return Math.random().toString(36).substring(2, 6).toUpperCase()
+}
 
 const createGame = async () => {
-  console.log("Creating a new game room...");
-  lobbyError.value = "";
+  console.log('Creating a new game room...')
+  lobbyError.value = ''
 
   if (!user.value) {
     await navigateTo("/login?redirect=createGame");
     return;
   }
 
-  const newRoomCode = generateRoomCode();
+  const newRoomCode = generateRoomCode()
 
   const { data: createdRoom, error: roomInsertError } = await supabase
-    .from("rooms")
+    .from('rooms')
     .insert({
       code: newRoomCode,
       owner: user.value.id || user.value.sub,
       metadata: { round_status: "lobby"},
     })
     .select()
-    .single();
+    .single()
 
   if (roomInsertError) {
-    lobbyError.value = "Could not create room in database. Please try again.";
-    console.error("Room insert failed:", roomInsertError);
-    return;
+    lobbyError.value = 'Could not create room in database. Please try again.'
+    console.error('Room insert failed:', roomInsertError)
+    return
   }
 
-  console.log("Created room:", createdRoom);
-
+  console.log('Created room:', createdRoom)
+  
   // Navigate the host to the new room
-  await navigateToRoom(createdRoom.code);
-};
+  await navigateToRoom(createdRoom.code)
+}
 
 const joinGame = async () => {
-  lobbyError.value = "";
+  lobbyError.value = ''
 
-  const roomCode = roomCodeInput.value.trim().toUpperCase();
-  if (!roomCode) return;
+  const roomCode = roomCodeInput.value.trim().toUpperCase()
+  if (!roomCode) return
 
   if (!user.value) {
     await navigateTo("/login?redirect=joinGame&roomCode=" + roomCode);
@@ -228,7 +233,12 @@ const joinGame = async () => {
 };
 
 const handleAuthAction = async () => {
-  // User is not logged in, redirect to login page
-  await navigateTo("/login");
+  if (user.value) {
+    // User is logged in, so log them out
+    await supabase.auth.signOut();
+  } else {
+    // User is not logged in, redirect to login page
+    await navigateTo("/login");
+  }
 };
 </script>
