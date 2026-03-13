@@ -23,6 +23,7 @@ const playerHandCards = ref([]);
 const blackCard = ref({});
 const myChosenWhiteCards = ref<any[]>([]);
 const submittedWhiteCards = ref<any[]>([]);
+const isWhiteCardsSubmitted = ref(false);
 
 const winnerUsername = ref(null);
 const winnerCards = ref(null);
@@ -98,7 +99,6 @@ onMounted(async () => {
   if (!user.value) {
     navigateTo("/login?redirect=joinGame&roomCode=" + roomCode);
   } else {
-    console.log("Existing user session found:", user.value);
     playerId.value = user.value.sub;
   }
   // ===============================================================
@@ -107,9 +107,6 @@ onMounted(async () => {
   // ===============================================================
   if (!playerId.value || !roomId.value) {
     authError.value = "Missing player or room ID.";
-
-    console.log("playerId:", playerId.value);
-    console.log("roomId:", roomId.value);
     return;
   }
 
@@ -197,7 +194,7 @@ onMounted(async () => {
     },
     (payload) => {
       console.log("[POSTGRES CHANGES] rooms updated: ", payload);
-      handleGameStateChanges(payload.new);
+      handleGameStateChanges(payload.new.metadata);
     },
   );
 
@@ -216,6 +213,7 @@ onMounted(async () => {
   // Game already in progress, sync to current state
   // ===============================================================
   if (roomData.metadata?.round_status !== "lobby") {
+
     const { data: handCardsData } = await supabase
       .from("hand_cards")
       .select("*")
@@ -223,19 +221,14 @@ onMounted(async () => {
       .eq("user_id", playerId.value);
     playerHandCards.value = handCardsData ?? [];
 
-    console.log("playerHandCards:", playerHandCards.value);
-
     collectionCards.value = await supabase
       .from("cards")
       .select("*")
       .eq("collection_id", roomData.metadata.set_id);
 
     gameStarted.value = true;
-    roundStatus.value = roomData.metadata.round_status;
-    blackCard.value = roomData.metadata.black_card;
-    gameState.value = roomData.metadata;
+    handleGameStateChanges(roomData.metadata);
 
-    console.log("collectionCards:", collectionCards.value);
   }
   // ===============================================================
 
@@ -307,32 +300,49 @@ const startGame = async () => {
   });
 };
 
-async function handleGameStateChanges(newState: object) {
-  gameState.value = newState.metadata;
-  roundStatus.value = newState.metadata.round_status;
+async function handleGameStateChanges(currentMetaData: object) {
+  gameState.value = currentMetaData;
+  roundStatus.value = currentMetaData.round_status;
 
-  if (newState.metadata.round_status === "round_start") {
-    handleRoundStart(newState);
+  switch (currentMetaData.round_status) {
+    case "round_start":
+      handleRoundStart(currentMetaData);
+      break;
+    case "round_submitted":
+      handleRoundSubmitted(currentMetaData);
+      break;
+    case "round_end":
+      handleRoundEnd(currentMetaData);
+      break;
+    default:
+      console.warn("Unknown round status:", currentMetaData.round_status);
   }
-
-  if (newState.metadata.round_status === "round_submitted") {
-    handleRoundSubmitted(newState);
-  }
-
-  if (newState.metadata.round_status === "round_end") {
-    handleRoundEnd(newState);
-  }
-
-  // console.log("Czar ID: ", czarId.value);
-  // console.log("IsCzar: ", isCzar.value);
 }
 
-async function handleRoundStart(newState: object) {
-  blackCard.value = newState.metadata.black_card;
-  console.log("Black card for this round:", blackCard.value);
+async function handleRoundStart(currentMetaData: object) {
+  gameState.value = currentMetaData;
+  roundStatus.value = currentMetaData.round_status;
+
+  const { data, error } = await supabase
+    .from("room_members")
+    .select("status")
+    .eq("room_id", roomId.value)
+    .eq("user_id", playerId.value)
+
+
+  if (error) {
+    console.error("Error checking submission status:", error);
+    return;
+  }
+
+  isWhiteCardsSubmitted.value = data[0].status === "submitted";
+  blackCard.value = currentMetaData.black_card;
 }
 
-async function handleRoundSubmitted(newState: object) {
+async function handleRoundSubmitted(currentMetaData: object) {
+  gameState.value = currentMetaData;
+  roundStatus.value = currentMetaData.round_status;
+
   const { data, error } = await supabase
     .from("room_members")
     .select("*")
@@ -348,26 +358,18 @@ async function handleRoundSubmitted(newState: object) {
   console.log("submittedWhiteCards: ", submittedWhiteCards.value);
 }
 
-async function handleRoundEnd(newState: object) {
-  const winnerId = newState.metadata.current_winner.user_id;
-  console.log("Winner ID: ", winnerId);
-  console.log("Players: ", players.value);
-
+async function handleRoundEnd(currentMetaData: object) {
+  const winnerId = currentMetaData.current_winner.user_id;
   winnerUsername.value = players.value.find((p) => p.user_id === winnerId)?.user_name|| null;
-  console.log("Winner username: ", winnerUsername.value);
-  winnerCards.value = newState.metadata.current_winner.metadata?.submitted_cards || null;
-
+  winnerCards.value = currentMetaData.current_winner.metadata?.submitted_cards || null;
 }
 
 const chooseCard = async (card) => {
   if (isCzar.value) return;
 
-  console.log("Choosing card: ", card);
-
   const idx = myChosenWhiteCards.value.findIndex((c) => c.id === card.id);
   if (idx === -1) {
     if (myChosenWhiteCards.value.length === numberOfCardsToPlay.value) {
-      console.log("[MYPLAYEDCARDS] replacing the oldest one with the new");
       myChosenWhiteCards.value.shift(); // Remove the oldest played card from hand
       myChosenWhiteCards.value.push(card); // Add the new card to the end of the array
 
@@ -375,10 +377,8 @@ const chooseCard = async (card) => {
     }
 
     myChosenWhiteCards.value.push(card);
-    console.log("[MYPLAYEDCARDS] Pushed a new card", myChosenWhiteCards.value);
   } else {
     myChosenWhiteCards.value.splice(idx, 1);
-    console.log("[MYPLAYEDCARDS] Deleted a card: ", myChosenWhiteCards.value);
   }
 };
 
@@ -398,20 +398,23 @@ const submitWhiteCards = async () => {
     );
 
     if (error) {
-      console.error("Error submitting white cards:", error);
+      console.error("[EDGE] Error submitting white cards:", error);
     } else {
       const submittedIds = new Set(myChosenWhiteCards.value.map((c) => c.id));
       playerHandCards.value = playerHandCards.value.filter(
         (handCard) => !submittedIds.has(handCard.id),
       );
       myChosenWhiteCards.value = [];
-      //here
 
-      console.log("Submitted white cards successfully");
+      isWhiteCardsSubmitted.value = true;
+      
+      // TODO: delete cards from hand_cards table
+
+      console.log("[EDGE] success submit_white_cards");
     }
   } else {
     console.warn(
-      `Must select exactly ${numberOfCardsToPlay.value} cards to submit`,
+      `${numberOfCardsToPlay.value} card(s) need to be submitted!`,
     );
   }
 };
@@ -419,7 +422,7 @@ const submitWhiteCards = async () => {
 async function selectWinner(chosenPlayerSubmittion) {
   if (!isCzar.value) return;
 
-  console.log("Selected submission: ", chosenPlayerSubmittion);
+  console.log("Selected winner: ", chosenPlayerSubmittion);
 
   const { data, error } = await supabase.functions.invoke("select_winner", {
     method: "POST",
@@ -432,7 +435,7 @@ async function selectWinner(chosenPlayerSubmittion) {
   if (error) {
     console.error("Error selecting winner:", error);
   } else {
-    console.log("Selected winner successfully");
+    console.log("[EDGE] success select_winner", data);
   }
 }
 
@@ -525,7 +528,7 @@ onUnmounted(() => {
           {{
             isCzar
               ? "Waiting for players to pick..."
-              : myChosenWhiteCards.length > 0
+              : myChosenWhiteCards.length > 0 || isWhiteCardsSubmitted
                 ? "Waiting for others..."
                 : "Pick a white card!"
           }}
@@ -552,7 +555,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Judging Area -->
-      <div v-if="roundStatus === 'round_submitted' || roundStatus === 'WINNER'"
+      <div v-if="roundStatus === 'round_submitted'"
         class="flex flex-wrap justify-center gap-4">
         <div v-for="playerSubmission in submittedWhiteCards" :key="playerSubmission.id"
           @click="isCzar && selectWinner(playerSubmission)"
@@ -570,7 +573,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Player Hand -->
-      <div v-if="!isCzar && roundStatus === 'round_start'" class="bg-white rounded shadow-md p-6">
+      <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false" class="bg-white rounded shadow-md p-6">
         <h3 class="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">
           Your Hand
         </h3>
@@ -595,7 +598,7 @@ onUnmounted(() => {
       <p class="text-gray-500">Waiting for the Game Master to start...</p>
     </div>
 
-    <div v-if="gameStarted && !isCzar && roundStatus === 'round_start'"
+    <div v-if="gameStarted && !isCzar && roundStatus === 'round_start' && !isWhiteCardsSubmitted"
       class="fixed bottom-8 flex items-center space-x-4">
       <button @click="submitWhiteCards"
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600">
