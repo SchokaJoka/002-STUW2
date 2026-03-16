@@ -9,6 +9,7 @@ const { getCardCollections } = useCards();
 
 const roomCode = String(route.params.roomId ?? "").toUpperCase();
 const players = ref([]);
+const playerScores = ref<Record<string, number | null>>({});
 const roomId = ref<string | null>(null);
 const playerId = ref<string | null>(null);
 
@@ -76,6 +77,23 @@ const getCardTextById = (cardId: string) => {
   const card = availableCollectionCards.value.find((c: any) => c.id === cardId);
   return card?.text || "Unknown card";
 };
+
+const getPlayerScore = (userId: string) => {
+  const score = playerScores.value[userId];
+  return typeof score === "number" ? score : 0;
+};
+
+const playersWithScores = computed(() => {
+  return players.value.map((player: any) => ({
+    ...player,
+    score: getPlayerScore(player.user_id),
+  }));
+});
+
+const round = computed(() => {
+  if (!gameState.value.round) return null;
+  return gameState.value.round;
+});
 
 onMounted(async () => {
   // Look up the room by code and get its ID
@@ -197,6 +215,26 @@ onMounted(async () => {
       handleGameStateChanges(payload.new.metadata);
     },
   );
+  gameChannel.value.on(
+    "postgres_changes",
+    {
+      event: "UPDATE",
+      schema: "public",
+      table: "room_members",
+      filter: `room_id=eq.${roomId.value}`,
+    },
+    (payload) => {
+      console.log("[POSTGRES CHANGES] room_members updated: ", payload);
+      const updatedUserId = payload.new.user_id;
+      if (!updatedUserId) return;
+
+      playerScores.value = {
+        ...playerScores.value,
+        [updatedUserId]: payload.new.points ?? 0,
+      };
+      console.log("playerScores: ", playerScores.value);
+    },
+  );
 
   gameChannel.value.subscribe(async (status) => {
     if (status === "SUBSCRIBED") {
@@ -232,18 +270,6 @@ onMounted(async () => {
   }
   // ===============================================================
 
-  // // Load existing moves to catch up
-  // const { data: moves } = await supabase
-  //     .from('game_moves')
-  //     .select('*')
-  //     .eq('room_id', existingRoom.id)
-  //     .order('seq', { ascending: true })
-
-  // if (moves && moves.length > 0) {
-  //     for (const move of moves) {
-  //         await handleMove(move)
-  //     }
-  // }
 });
 
 // ACTION - Start game
@@ -271,15 +297,6 @@ const startGame = async () => {
     type: "broadcast",
     event: "game_start",
   });
-
-  // Get the current session token to authorise the edge function call
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
-    authError.value = "Not authenticated.";
-    return;
-  }
 
   const { data: edgeInitializeData } = await supabase.functions.invoke(
     "initialize_game",
@@ -329,7 +346,6 @@ async function handleRoundStart(currentMetaData: object) {
     .eq("room_id", roomId.value)
     .eq("user_id", playerId.value)
 
-
   if (error) {
     console.error("Error checking submission status:", error);
     return;
@@ -349,10 +365,25 @@ async function handleRoundSubmitted(currentMetaData: object) {
     .eq("room_id", roomId.value)
     .neq("user_id", czarId.value);
 
+    
+  const { error: error2 } = await supabase
+  .from("room_members")
+  .update({ status: "waiting" })
+  .eq("room_id", roomId.value)
+  .eq("user_id", playerId.value);
+    
   if (error) {
     console.error("Error loading submitted white cards:", error);
     return;
   }
+  
+  if (error2) {
+    console.error("Error updating player status to waiting:", error2);
+    return;
+  }
+
+  isWhiteCardsSubmitted.value = false;
+  myChosenWhiteCards.value = [];
 
   submittedWhiteCards.value = data ?? [];
   console.log("submittedWhiteCards: ", submittedWhiteCards.value);
@@ -404,12 +435,11 @@ const submitWhiteCards = async () => {
       playerHandCards.value = playerHandCards.value.filter(
         (handCard) => !submittedIds.has(handCard.id),
       );
+      console.log("Updated playerHandCards after submission: ", playerHandCards.value);
       myChosenWhiteCards.value = [];
 
       isWhiteCardsSubmitted.value = true;
       
-      // TODO: delete cards from hand_cards table
-
       console.log("[EDGE] success submit_white_cards");
     }
   } else {
@@ -438,6 +468,27 @@ async function selectWinner(chosenPlayerSubmittion) {
     console.log("[EDGE] success select_winner", data);
   }
 }
+
+const nextRound = async () => {
+  if (!isGameMaster.value) return;
+
+  const { data, error } = await supabase.functions.invoke("initialize_next_round", {
+    method: "POST",
+    body: {
+      room_id: roomId.value,
+    },
+  });
+
+  if (error) {
+    console.error("Error starting next round:", error);
+  } else {
+    console.log("[EDGE] success initialize_next_round", data);
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "cards_dealt",
+    });
+  }
+};
 
 const leaveRoom = async () => {
   const { error } = await supabase
@@ -481,6 +532,7 @@ onUnmounted(() => {
             {{ players.length }} players online
           </p>
           <p class="text-sm text-blue-500">({{ roundStatus }})</p>
+          <p class="text-sm text-blue-500">round: {{ round }}</p>
         </div>
         <div class="flex gap-2">
           <button v-if="!gameStarted && isGameMaster" @click="startGame"
@@ -496,14 +548,14 @@ onUnmounted(() => {
 
       <!-- Player List -->
       <div class="flex flex-wrap gap-2">
-        <div v-for="player in players" :key="player.user_id"
+        <div v-for="player in playersWithScores" :key="player.user_id"
           class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium" :class="czarId === player.user_id
               ? 'bg-blue-50 border-blue-200 text-blue-700'
               : 'bg-gray-50 border-gray-200 text-gray-600'
             ">
           <span>{{ player.user_name }}</span>
           <span v-if="czarId === player.user_id" class="font-bold">CZAR</span>
-          <span class="text-gray-400">({{ 0 }})</span>
+          <span class="text-gray-400">({{ player.score }})</span>
         </div>
       </div>
     </div>
