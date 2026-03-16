@@ -73,10 +73,42 @@ const availableCollectionCards = computed(() => {
   return [];
 });
 
+const GAP_TOKEN = "[[W1tnYXBdXQ==]]";
+
+type TextPart = {
+  text: string;
+  isGap: boolean;
+};
+
 const getCardTextById = (cardId: string) => {
   const card = availableCollectionCards.value.find((c: any) => c.id === cardId);
   return card?.text || "Unknown card";
 };
+
+const getTextParts = (text: string): TextPart[] => {
+  if (!text.includes(GAP_TOKEN)) {
+    return [{ text, isGap: false }];
+  }
+
+  return text
+    .split(GAP_TOKEN)
+    .flatMap((part: string, index: number, parts: string[]) =>
+      index < parts.length - 1
+        ? [
+          { text: part, isGap: false },
+          { text: "", isGap: true },
+        ]
+        : [{ text: part, isGap: false }],
+    );
+};
+
+const blackCardTextParts = computed(() => {
+  const text = typeof (blackCard.value as any)?.text === "string"
+    ? (blackCard.value as any).text
+    : "";
+
+  return getTextParts(text);
+});
 
 const getPlayerScore = (userId: string) => {
   const score = playerScores.value[userId];
@@ -365,18 +397,18 @@ async function handleRoundSubmitted(currentMetaData: object) {
     .eq("room_id", roomId.value)
     .neq("user_id", czarId.value);
 
-    
+
   const { error: error2 } = await supabase
-  .from("room_members")
-  .update({ status: "waiting" })
-  .eq("room_id", roomId.value)
-  .eq("user_id", playerId.value);
-    
+    .from("room_members")
+    .update({ status: "waiting" })
+    .eq("room_id", roomId.value)
+    .eq("user_id", playerId.value);
+
   if (error) {
     console.error("Error loading submitted white cards:", error);
     return;
   }
-  
+
   if (error2) {
     console.error("Error updating player status to waiting:", error2);
     return;
@@ -391,7 +423,7 @@ async function handleRoundSubmitted(currentMetaData: object) {
 
 async function handleRoundEnd(currentMetaData: object) {
   const winnerId = currentMetaData.current_winner.user_id;
-  winnerUsername.value = players.value.find((p) => p.user_id === winnerId)?.user_name|| null;
+  winnerUsername.value = players.value.find((p) => p.user_id === winnerId)?.user_name || null;
   winnerCards.value = currentMetaData.current_winner.metadata?.submitted_cards || null;
 }
 
@@ -439,7 +471,7 @@ const submitWhiteCards = async () => {
       myChosenWhiteCards.value = [];
 
       isWhiteCardsSubmitted.value = true;
-      
+
       console.log("[EDGE] success submit_white_cards");
     }
   } else {
@@ -515,6 +547,15 @@ const markMemberInactive = async () => {
     .eq("user_id", playerId.value);
 };
 
+const getInitials = (name) => {
+  if (!name) return "?";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
+
 onUnmounted(() => {
   if (!isLeaving.value) markMemberInactive();
   if (gameChannel.value) supabase.removeChannel(gameChannel.value);
@@ -524,38 +565,42 @@ onUnmounted(() => {
 <template>
   <main class="flex flex-col items-center min-h-screen scroll-x-">
     <!-- Lobby Info Section -->
-    <section class="w-full max-w-svw p-6 mb-6 pt-[max(env(safe-area-inset-top),1.5rem)]">
-      <div class="flex items-start justify-between h-fit mb-4">
+    <section class="w-full max-w-svw h-fit mb-2 overflow-x-visible pt-[max(env(safe-area-inset-top),1.5rem)]">
+      <div class="flex items-start justify-between h-fit p-4">
         <div class="">
           <h1 class="text-2xl font-bold">Room: {{ roomCode }}</h1>
-          <p class="text-sm text-gray-500">
+          <!-- <p class="text-sm text-gray-500">
             {{ players.length }} players online
-          </p>
-          <p class="text-sm text-blue-500">({{ roundStatus }})</p>
-          <p class="text-sm text-blue-500">round: {{ round }}</p>
+          </p> -->
+          <!-- <p class="text-sm text-blue-500">({{ roundStatus }})</p> -->
+          <p v-if="round" class="text-sm text-blue-500">{{ round }}. Round</p>
         </div>
-        <div class="flex h-full gap-2 justify-start">
-          <button v-if="!gameStarted && isGameMaster" @click="startGame"
-            class="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600">
-            Start Game
-          </button>
+        <div class="flex gap-2">
           <button @click="leaveRoom"
-            class="px-4 py-2 text-gray-500 border border-gray-300 text-sm rounded hover:bg-gray-50">
+            class="px-6 py-4 rounded-full text-gray-500 border border-gray-300 text-sm font-semibold rounded-xl hover:bg-gray-50">
             Leave
           </button>
         </div>
       </div>
 
       <!-- Player List -->
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-row px-4 overflow-x-auto gap-2">
         <div v-for="player in playersWithScores" :key="player.user_id"
-          class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium" :class="czarId === player.user_id
-              ? 'bg-blue-50 border-blue-200 text-blue-700'
-              : 'bg-gray-50 border-gray-200 text-gray-600'
+          class="flex flex-row items-center gap-2 min-w-24 rounded-xl pl-2 pr-4 py-2 text-xs font-medium bg-gray-50"
+          :class="czarId === player.user_id
+            ? 'border-2 border-blue-200 text-blue-700'
+            : 'text-gray-600'
             ">
-          <span>{{ player.user_name }}</span>
-          <span v-if="czarId === player.user_id" class="font-bold">CZAR</span>
-          <span class="text-gray-400">({{ player.score }})</span>
+          <!-- <div
+            class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold hover:bg-blue-600 transition"
+            :title="`${user?.user_metadata?.full_name || 'Profile'}`">
+            {{ getInitials(player.user_name) }}
+          </div> -->
+          <div>
+            <p class="text-md font-bold text-gray-600">{{ player.user_name }}</p>
+            <!-- <p v-if="czarId === player.user_id" class="font-bold">CZAR</p> -->
+            <p class="text-gray-400">{{ player.score }}</p>
+          </div>
         </div>
       </div>
     </section>
@@ -563,37 +608,27 @@ onUnmounted(() => {
     <p v-if="authError" class="text-red-500 text-sm mb-4">{{ authError }}</p>
 
     <!-- Game Area -->
-    <section v-if="gameStarted" class="w-full max-w-2xl space-y-6">
-      <!-- Black Card -->
-      <div class="flex justify-center">
-        <div v-if="blackCard" class="relative h-64 w-48 rounded bg-gray-900 p-6 text-lg font-bold text-white shadow-md">
-          <div>
-            {{ blackCard.text }}
-          </div>
-        </div>
-      </div>
+    <section v-if="gameStarted" class="w-full max-w-2xl">
 
       <!-- Status Message -->
-      <div class="bg-white rounded shadow-md p-6 text-center">
-        <p v-if="roundStatus === 'round_start'" class="text-lg font-medium text-gray-700">
+      <div class="bg-white rounded p-2 text-blue-500 text-2xl text-center">
+        <p v-if="roundStatus === 'round_start'" class="font-medium">
           {{
             isCzar
               ? "Waiting for players to pick..."
-              : myChosenWhiteCards.length > 0 || isWhiteCardsSubmitted
+              : isWhiteCardsSubmitted
                 ? "Waiting for others..."
                 : "Pick a white card!"
           }}
         </p>
-        <p v-if="roundStatus === 'JUDGING'" class="text-lg font-medium text-blue-600">
+        <p v-if="roundStatus === 'round_submit'" class="font-medium">
           {{ isCzar ? "Pick the winner!" : "The Czar is judging..." }}
         </p>
         <div v-if="roundStatus === 'round_end'" class="space-y-3">
-          <p class="text-xl font-bold text-green-600">Winner found!</p>
           <p class="text-lg font-medium text-gray-700">
             {{ winnerUsername ? `${winnerUsername} wins the round!` : "Couldn't determine winner." }}
           </p>
-          <div
-            class="h-64 w-48 rounded border-2 bg-white p-4 font-bold shadow-md transition-all">
+          <div class="h-64 w-48 rounded border-2 bg-white p-4 font-bold shadow-md transition-all">
             <div v-for="cardId in winnerCards" class="mb-2 rounded bg-gray-50 p-2 text-sm">
               {{ getCardTextById(cardId) }}
             </div>
@@ -605,16 +640,32 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Black Card -->
+      <div class="flex justify-center">
+        <div v-if="blackCard" class="relative h-64 w-52 rounded-lg bg-gray-900 p-6 text-lg font-bold text-white shadow-md">
+          <div>
+            <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`">
+              <span v-if="part.isGap"
+                class="mx-1 inline-flex min-w-20 items-center justify-center rounded-md border border-white/40 bg-white/10 px-3 py-1 align-middle text-sm font-semibold tracking-[0.35em] text-white/80 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+                •••
+              </span>
+              <span v-else>{{ part.text }}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+
+
       <!-- Judging Area -->
-      <div v-if="roundStatus === 'round_submitted'"
-        class="flex flex-wrap justify-center gap-4">
+      <div v-if="roundStatus === 'round_submitted'" class="flex flex-wrap justify-center gap-4">
         <div v-for="playerSubmission in submittedWhiteCards" :key="playerSubmission.id"
           @click="isCzar && selectWinner(playerSubmission)"
           class="h-64 w-48 rounded border-2 bg-white p-4 font-bold shadow-md transition-all" :class="winnerUsername?.winnerId === playerSubmission.user_id
-              ? 'border-green-500 bg-green-50'
-              : isCzar
-                ? 'cursor-pointer border-gray-200 hover:-translate-y-2 hover:border-blue-400'
-                : 'cursor-default border-gray-200'
+            ? 'border-green-500 bg-green-50'
+            : isCzar
+              ? 'cursor-pointer border-gray-200 hover:-translate-y-2 hover:border-blue-400'
+              : 'cursor-default border-gray-200'
             ">
           <div v-for="cardId in playerSubmission.metadata?.submitted_cards || []"
             :key="`${playerSubmission.id}-${cardId}`" class="mb-2 rounded bg-gray-50 p-2 text-sm">
@@ -624,21 +675,21 @@ onUnmounted(() => {
       </div>
 
       <!-- Player Hand -->
-      <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false" class="bg-white rounded shadow-md p-6">
-        <h3 class="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">
-          Your Hand
-        </h3>
-        <div class="flex flex-wrap justify-center gap-3">
+      <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false"
+        class="mt-6">
+        <div class="mx-1 overflow-x-auto overflow-y-visible px-1 pb-3 pt-1 [scrollbar-width:thin]">
+          <div class="flex w-max min-w-full flex-nowrap gap-4 snap-x snap-mandatory">
           <div v-for="card in playerHandCards" :key="card.id" @click="chooseCard(card)"
-            class="h-48 w-36 cursor-pointer rounded border border-gray-200 p-4 text-sm font-bold shadow-sm transition-all hover:-translate-y-2 hover:border-blue-400 hover:shadow-md"
+            class="h-64 w-52 shrink-0 snap-start cursor-pointer rounded-lg border border-gray-200 bg-white p-4 text-sm font-bold text-gray-800 shadow-sm transition-all md:hover:-translate-y-1 md:hover:border-blue-300 md:hover:shadow-lg"
             :class="myChosenWhiteCards.some((c) => c.id === card.id)
-                ? 'opacity-50 grayscale'
-                : 'bg-white'
+              ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
+              : 'bg-white'
               ">
             {{
               (collectionCards.data || []).find((c) => c.id === card.card_id)
                 ?.text || "Loading..."
             }}
+          </div>
           </div>
         </div>
       </div>
@@ -649,11 +700,20 @@ onUnmounted(() => {
       <p class="text-gray-500">Waiting for the Game Master to start...</p>
     </section>
 
+    <!-- Submit Button -->
     <section v-if="gameStarted && !isCzar && roundStatus === 'round_start' && !isWhiteCardsSubmitted"
       class="fixed bottom-8 flex items-center space-x-4">
       <button @click="submitWhiteCards"
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600">
         Submit
+      </button>
+    </section>
+
+    <!-- Start Game Button -->
+    <section v-if="!gameStarted && isGameMaster" class="fixed bottom-8 flex items-center space-x-4">
+      <button @click="startGame"
+        class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600">
+        Start Game
       </button>
     </section>
   </main>
