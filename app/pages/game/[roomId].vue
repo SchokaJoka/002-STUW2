@@ -70,16 +70,27 @@ const numberOfCardsToPlay = computed(() => {
   return blackCard.value.number_of_gaps;
 });
 
-const {
-  selectedItems: myChosenWhiteCards,
-  isSubmitting: isSubmittingWhiteCards,
-  pick: pickWhiteCard,
-  submitSelection: submitWhiteCardSelection,
-  resetSelection: resetWhiteCardSelection,
-} = useSubmissionSelector<any>({
-  requiredCount: () => Number(numberOfCardsToPlay.value ?? 1),
-  getKey: (card) => card?.id,
-});
+const chosenWhiteCardsByGap = ref<any[]>([]);
+const whiteCardPickError = ref("");
+const isSubmittingWhiteCards = ref(false);
+
+const myChosenWhiteCards = computed(() =>
+  chosenWhiteCardsByGap.value.filter((card) => !!card),
+);
+
+const ensureGapSlots = () => {
+  const required = Number(numberOfCardsToPlay.value ?? 1);
+  const current = chosenWhiteCardsByGap.value;
+  chosenWhiteCardsByGap.value = Array.from(
+    { length: required },
+    (_, idx) => current[idx] ?? null,
+  );
+};
+
+const resetWhiteCardSelection = () => {
+  chosenWhiteCardsByGap.value = [];
+  whiteCardPickError.value = "";
+};
 
 const {
   selectedItems: selectedWinnerSubmissions,
@@ -156,7 +167,8 @@ const canEditChosenGaps = computed(() => {
 const getChosenWhiteCardTextAtGap = (gapIndex?: number) => {
   if (typeof gapIndex !== "number") return null;
 
-  const chosenCard = myChosenWhiteCards.value[gapIndex];
+  ensureGapSlots();
+  const chosenCard = chosenWhiteCardsByGap.value[gapIndex];
   if (!chosenCard) return null;
 
   const cardText = availableCollectionCards.value.find(
@@ -169,11 +181,12 @@ const getChosenWhiteCardTextAtGap = (gapIndex?: number) => {
 const removeChosenWhiteCardAtGap = (gapIndex?: number) => {
   if (!canEditChosenGaps.value) return;
   if (typeof gapIndex !== "number") return;
-  if (gapIndex < 0 || gapIndex >= myChosenWhiteCards.value.length) return;
 
-  myChosenWhiteCards.value = myChosenWhiteCards.value.filter(
-    (_, idx) => idx !== gapIndex,
-  );
+  ensureGapSlots();
+  if (gapIndex < 0 || gapIndex >= chosenWhiteCardsByGap.value.length) return;
+
+  chosenWhiteCardsByGap.value[gapIndex] = null;
+  whiteCardPickError.value = "";
 };
 
 const getPlayerScore = (userId: string) => {
@@ -548,44 +561,76 @@ async function handleRoundEnd(currentMetaData: object) {
 
 const chooseCard = async (card) => {
   if (isCzar.value) return;
-  pickWhiteCard(card);
+
+  ensureGapSlots();
+  whiteCardPickError.value = "";
+
+  const existingIdx = chosenWhiteCardsByGap.value.findIndex(
+    (chosen) => chosen?.id === card.id,
+  );
+
+  if (existingIdx !== -1) {
+    chosenWhiteCardsByGap.value[existingIdx] = null;
+    return;
+  }
+
+  const firstEmptyGapIdx = chosenWhiteCardsByGap.value.findIndex(
+    (chosen) => !chosen,
+  );
+  if (firstEmptyGapIdx === -1) {
+    whiteCardPickError.value = `you can only pick ${Number(numberOfCardsToPlay.value ?? 1)} cards`;
+    return;
+  }
+
+  chosenWhiteCardsByGap.value[firstEmptyGapIdx] = card;
 };
 
 const submitWhiteCards = async () => {
+  const required = Number(numberOfCardsToPlay.value ?? 1);
+  const selectedCards = myChosenWhiteCards.value;
+
+  if (selectedCards.length !== required) {
+    whiteCardPickError.value = `you have to pick ${required} cards`;
+    return;
+  }
+
+  if (isSubmittingWhiteCards.value) return;
+  isSubmittingWhiteCards.value = true;
+
   try {
-    await submitWhiteCardSelection(async (selectedCards) => {
-      const { data, error } = await supabase.functions.invoke(
-        "submit_white_cards",
-        {
-          method: "POST",
-          body: {
-            czar_id: czarId.value,
-            user_id: playerId.value,
-            room_id: roomId.value,
-            submitted_cards: selectedCards,
-          },
+    const { data, error } = await supabase.functions.invoke(
+      "submit_white_cards",
+      {
+        method: "POST",
+        body: {
+          czar_id: czarId.value,
+          user_id: playerId.value,
+          room_id: roomId.value,
+          submitted_cards: selectedCards,
         },
-      );
+      },
+    );
 
-      if (error) {
-        console.error("[EDGE] Error submitting white cards:", error);
-        return;
-      }
+    if (error) {
+      console.error("[EDGE] Error submitting white cards:", error);
+      return;
+    }
 
-      const submittedIds = new Set(selectedCards.map((c) => c.id));
-      playerHandCards.value = playerHandCards.value.filter(
-        (handCard) => !submittedIds.has(handCard.id),
-      );
-      console.log(
-        "Updated playerHandCards after submission: ",
-        playerHandCards.value,
-      );
-      resetWhiteCardSelection();
-      isWhiteCardsSubmitted.value = true;
-      console.log("[EDGE] success submit_white_cards", data);
-    });
+    const submittedIds = new Set(selectedCards.map((c) => c.id));
+    playerHandCards.value = playerHandCards.value.filter(
+      (handCard) => !submittedIds.has(handCard.id),
+    );
+    console.log(
+      "Updated playerHandCards after submission: ",
+      playerHandCards.value,
+    );
+    resetWhiteCardSelection();
+    isWhiteCardsSubmitted.value = true;
+    console.log("[EDGE] success submit_white_cards", data);
   } catch (error) {
     console.error("[EDGE] submit_white_cards failed:", error);
+  } finally {
+    isSubmittingWhiteCards.value = false;
   }
 };
 
@@ -757,6 +802,17 @@ onUnmounted(() => {
     </section>
 
     <p v-if="authError" class="text-red-500 text-sm mb-4">{{ authError }}</p>
+    <p
+      v-if="
+        whiteCardPickError &&
+        !isCzar &&
+        roundStatus === 'round_start' &&
+        !isWhiteCardsSubmitted
+      "
+      class="text-red-500 text-sm mb-2"
+    >
+      {{ whiteCardPickError }}
+    </p>
 
     <!-- Game Area -->
     <section

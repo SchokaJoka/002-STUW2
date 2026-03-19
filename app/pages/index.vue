@@ -229,7 +229,7 @@ const joinGame = async () => {
 };
 
 const handleAuthAction = async () => {
-  if (user.value) {
+  if (user.value && !user.value.is_anonymous) {
     // User is logged in, so log them out
     await supabase.auth.signOut();
   } else {
