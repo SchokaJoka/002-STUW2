@@ -20,10 +20,16 @@ type UseSubmissionSelectorOptions<T> = {
 };
 
 function resolveRequiredCount(input?: RequiredCountInput): number {
-  if (typeof input === "number") return Math.max(1, input);
-  if (typeof input === "function") return Math.max(1, Number(input() ?? 1));
+  const normalizeCount = (value: unknown): number => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.max(1, Math.floor(parsed));
+  };
+
+  if (typeof input === "number") return normalizeCount(input);
+  if (typeof input === "function") return normalizeCount(input());
   if (input && typeof input === "object" && "value" in input) {
-    return Math.max(1, Number(input.value ?? 1));
+    return normalizeCount(input.value);
   }
   return 1;
 }
@@ -66,6 +72,7 @@ export const useSubmissionSelector = <T>(
     if (mode !== "slots") return;
     const current = selectedSlots.value;
     const required = requiredCount.value;
+    if (current.length === required) return;
     selectedSlots.value = Array.from(
       { length: required },
       (_, idx) => current[idx] ?? null,

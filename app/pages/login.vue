@@ -95,6 +95,13 @@
         Back to Lobby
       </button>
 
+      <button
+        @click="$router.push('/carousel')"
+        class="w-full my-2 px-6 py-3 text-gray-500 border border-gray-300 rounded hover:bg-gray-50"
+      >
+        Go To Carousel
+      </button>
+
       <p v-if="errorMessage" class="text-red-500 mt-4 text-sm">
         {{ errorMessage }}
       </p>
@@ -106,6 +113,7 @@
 </template>
 
 <script setup lang="ts">
+
 const supabase = useSupabaseClient();
 const route = useRoute();
 const email = ref("");

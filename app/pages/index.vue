@@ -124,8 +124,6 @@ const guestNameEdit = ref("");
 const guestNameInput = ref(null);
 
 onMounted(async () => {
-  console.log("User, ", user.value);
-
   if (route.query.action === "createGame") {
     await createGame();
   }

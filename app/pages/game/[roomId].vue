@@ -2,8 +2,8 @@
 import { useCards } from "~/composables/useCards";
 import { useRoom } from "~/composables/useRoom";
 import { useSubmissionSelector } from "~/composables/useSubmissionSelector";
-import { useBlackCardGapTestToggle } from "~/composables/useBlackCardGapTestToggle";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import MyCarousel from "~/components/myCarousel.vue";
 
 const route = useRoute();
 const user = useSupabaseUser();
@@ -11,32 +11,36 @@ const supabase = useSupabaseClient();
 const { getCardCollections } = useCards();
 
 const roomCode = String(route.params.roomId ?? "").toUpperCase();
-const players = ref([]);
 const playerScores = ref<Record<string, number | null>>({});
 const roomId = ref<string | null>(null);
 const playerId = ref<string | null>(null);
+const roomData = ref<{} | null>({});
+
 const {
   // gameChannel ref
   gameChannel,
 
-  // variables
+  // Variables
   isLeaving,
-  roomData,
+  gameStarted,
+  players,
+  playerHandCards,
+  collectionCards,
 
-  // functions
+  // Functions
   getRoomIdByCode,
+  getRoomMetadata,
   insertPlayerInRoomTable,
   joinRoom,
-  leaveRoom,
+  deletePlayerFromRoomTable,
+  markMemberInactive,
+  trackMyStatus,
+  setupBroadcastListeners,
 } = useRoom();
 
 const gameState = ref({});
 const roundStatus = ref("lobby");
 
-const gameStarted = ref(false);
-
-const collectionCards = ref<any>({});
-const playerHandCards = ref([]);
 const blackCard = ref({});
 const submittedWhiteCards = ref<any[]>([]);
 const isWhiteCardsSubmitted = ref(false);
@@ -44,91 +48,11 @@ const isWhiteCardsSubmitted = ref(false);
 const winnerUsername = ref(null);
 const winnerUserId = ref<string | null>(null);
 const winnerCards = ref(null);
-const presenceJoinedAt = Date.now();
+const presenceJoinedAt: number = Date.now();
 
 const authError = ref("");
 const isStartingGame = ref(false);
 const isStartingNextRound = ref(false);
-
-const handOffset = ref(0); // start index of the visible 3-card window
-const visibleHandCards = 3;
-const handScrollLockMs = 120;
-let lastHandScrollAt = 0;
-
-const maxHandOffset = computed(() =>
-  Math.max(0, playerHandCards.value.length - visibleHandCards),
-);
-
-const clampHandOffset = (value: number) => {
-  return Math.min(Math.max(value, 0), maxHandOffset.value);
-};
-
-const stepHand = (direction: 1 | -1) => {
-  handOffset.value = clampHandOffset(handOffset.value + direction);
-};
-
-const handleHandScroll = (event: WheelEvent) => {
-  const now = Date.now();
-  if (now - lastHandScrollAt < handScrollLockMs) return;
-
-  const delta =
-    Math.abs(event.deltaX) > Math.abs(event.deltaY)
-      ? event.deltaX
-      : event.deltaY;
-
-  if (Math.abs(delta) < 8) return;
-
-  stepHand(delta > 0 ? 1 : -1);
-  lastHandScrollAt = now;
-};
-
-// Keep offset valid if hand size changes (cards submitted/dealt)
-watch(
-  () => playerHandCards.value.length,
-  () => {
-    handOffset.value = clampHandOffset(handOffset.value);
-  },
-);
-
-const handCardStyle = (index: number) => {
-  const centerIndex = handOffset.value + 1;
-  const relative = index - centerIndex;
-  const d = Math.abs(relative);
-  const dir = Math.sign(relative) || 1;
-
-  const x =
-    d === 0
-      ? 0
-      : d === 1
-        ? dir * 135
-        : d === 2
-          ? dir * 200
-          : d === 3
-            ? dir * 250
-            : dir * (250 + (d - 3) * 24);
-
-  const y = Math.min(4 + d * d * 3.2, 40);
-
-  const rotate =
-    d === 0
-      ? 0
-      : d === 1
-        ? relative * 5.5
-        : d === 2
-          ? relative * 4.2
-          : relative * 3.2;
-
-  const tooFar = d > 5;
-
-  return {
-    left: "50%",
-    top: "50%",
-    transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotate(${rotate}deg)`,
-    zIndex: String(2000 - d * 20 - index),
-    opacity: tooFar ? "0" : "1",
-    pointerEvents: tooFar ? "none" : "auto",
-  };
-};
 
 const gameMasterId = computed(() => {
   const firstPlayer = (players.value as any[])[0];
@@ -151,36 +75,10 @@ const isCzar = computed(() => {
 });
 
 const GAP_TOKEN = "[[W1tnYXBdXQ==]]";
-
-const {
-  setEnabled: setBlackCardMinGapTestEnabled,
-  applyIfEnabled: applyBlackCardMinGapTest,
-} = useBlackCardGapTestToggle({
-  gapToken: GAP_TOKEN,
-  minGaps: 2,
-});
-
-const enableBlackCardMinGapTest = ref(false);
-watch(
-  enableBlackCardMinGapTest,
-  (enabled) => {
-    setBlackCardMinGapTestEnabled(enabled);
-  },
-  { immediate: true },
-);
-
-const effectiveBlackCard = computed(() =>
-  applyBlackCardMinGapTest(blackCard.value as any),
-);
-
 const numberOfCardsToPlay = computed(() => {
-  const card = effectiveBlackCard.value as any;
-  if (!card) return null;
-  if (card.number_of_gaps === null) {
-    console.warn("Black card missing number_of_gaps:", card);
-    return null;
-  }
-  if (card.number_of_gaps === 0) return 1; // If 0, card is a question. 1 card must be played.
+  const card = blackCard.value as any;
+  if (!card || card.number_of_gaps == null) return null;
+  if (card.number_of_gaps === 0) return 1;
   return card.number_of_gaps;
 });
 
@@ -200,6 +98,10 @@ const {
   getKey: (card) => card?.id,
   deselectOnRepeatPick: true,
 });
+
+const selectedHandCardIds = computed(() =>
+  myChosenWhiteCards.value.map((c: any) => c.id),
+);
 
 const {
   selectedItems: selectedWinnerSubmissions,
@@ -255,10 +157,7 @@ const getTextParts = (text: string): TextPart[] => {
 };
 
 const blackCardTextParts = computed(() => {
-  const text =
-    typeof (effectiveBlackCard.value as any)?.text === "string"
-      ? (effectiveBlackCard.value as any).text
-      : "";
+  const text = blackCard.value.text || "";
 
   return getTextParts(text);
 });
@@ -330,19 +229,13 @@ const myPresenceStatus = computed(() => {
   return "playing";
 });
 
-const trackMyStatus = async () => {
-  if (!gameChannel.value || !playerId.value || !user.value) return;
-
-  await gameChannel.value.track({
-    user_id: playerId.value,
-    user_name: user.value.user_metadata?.full_name || "Guest",
-    status: myPresenceStatus.value,
-    joined_at: presenceJoinedAt,
-  });
-};
-
 watch(myPresenceStatus, async () => {
-  await trackMyStatus();
+  await trackMyStatus(
+    presenceJoinedAt,
+    myPresenceStatus.value,
+    playerId.value,
+    user.value.user_metadata?.full_name,
+  );
 });
 
 const round = computed(() => {
@@ -350,89 +243,45 @@ const round = computed(() => {
   return gameState.value.round;
 });
 
+function updatePlayerScores(updatedMember: any) {
+  playerScores.value[updatedMember.user_id] = updatedMember.score;
+}
+
 onMounted(async () => {
   roomId.value = await getRoomIdByCode(roomCode);
 
+  if (!roomId.value) {
+    console.error("Missing room ID");
+    return;
+  }
+
+  // Load room metadata only after roomId is known
+  const roomMetadata = await getRoomMetadata(roomId.value);
+  console.log("Fetched roomMetadata on mount:", roomMetadata);
+
   // Authentication
-  // ===============================================================
-  if (!user.value) {
-    navigateTo("/login?redirect=joinGame&roomCode=" + roomCode);
-  } else {
+  if (user.value) {
     playerId.value = user.value.sub;
-  }
-  // ===============================================================
-
-  if (!playerId.value || !roomId.value) {
-    authError.value = "Missing player or room ID.";
+  } else {
+    navigateTo("/login?redirect=joinGame&roomCode=" + roomCode);
     return;
   }
 
-  // Add player to room_members table (or mark active if rejoining)
-  // ===============================================================
-  insertPlayerInRoomTable(roomId.value, playerId.value);
-  // ===============================================================
-
-  // Join the realtime channel for this room by room ID
-  // ===============================================================
-  joinRoom(roomCode, playerId.value);
-
-  gameChannel.value = supabase.channel(`${roomCode}`, {
-    config: { broadcast: { self: true }, presence: { key: playerId.value } },
-  });
-
-  if (!gameChannel.value) {
-    authError.value = "Failed to join game channel.";
+  if (!playerId.value) {
+    console.error("Missing player ID");
     return;
   }
-  // ===============================================================
 
-  // Set up realtime listeners for presence and game state changes
-  // ===============================================================
-  gameChannel.value.on("presence", { event: "sync" }, () => {
-    const newState = gameChannel.value.presenceState();
+  await insertPlayerInRoomTable(roomId.value, playerId.value);
 
-    if (!newState) {
-      authError.value = "Failed to get presence state.";
-      return;
-    }
+  // JOIN REALTIME CHANNEL
+  await joinRoom(roomCode, playerId.value);
 
-    players.value = Object.keys(newState)
-      .map((key) => newState[key][0])
-      .sort((a, b) => (a.joined_at ?? 0) - (b.joined_at ?? 0));
+  // Realtime socket listeners
+  await setupBroadcastListeners(roomId.value, playerId.value);
 
-    // console.log("[PRESENCE] presenceState:", newState);
-    // console.log("[PRESENCE] players:", players.value);
-  });
-
-  gameChannel.value.on("broadcast", { event: "cards_dealt" }, async () => {
-    console.log("[BROADCAST] cards_dealt");
-    const { data } = await supabase
-      .from("hand_cards")
-      .select("*")
-      .eq("room_id", roomId.value)
-      .eq("user_id", playerId.value);
-    playerHandCards.value = data ?? [];
-    console.log("playerHandCards:", playerHandCards.value);
-  });
-
-  gameChannel.value.on(
-    "broadcast",
-    { event: "game_initialize" },
-    async (body) => {
-      console.log("[BROADCAST] game_initialize: ", body);
-      collectionCards.value = await supabase
-        .from("cards")
-        .select("*")
-        .eq("collection_id", body.payload.set_id);
-      console.log("collectionCards:", collectionCards.value);
-    },
-  );
-
-  gameChannel.value.on("broadcast", { event: "game_start" }, () => {
-    gameStarted.value = true;
-  });
-
-  gameChannel.value.on(
+  // Realtime table listeners
+  gameChannel.value?.on(
     "postgres_changes",
     {
       event: "UPDATE",
@@ -445,7 +294,8 @@ onMounted(async () => {
       handleGameStateChanges(payload.new.metadata);
     },
   );
-  gameChannel.value.on(
+
+  gameChannel.value?.on(
     "postgres_changes",
     {
       event: "UPDATE",
@@ -455,96 +305,46 @@ onMounted(async () => {
     },
     (payload) => {
       console.log("[POSTGRES CHANGES] room_members updated: ", payload);
-      const updatedUserId = payload.new.user_id;
-      if (!updatedUserId) return;
-
-      playerScores.value = {
-        ...playerScores.value,
-        [updatedUserId]: payload.new.points ?? 0,
-      };
-      console.log("playerScores: ", playerScores.value);
+      updatePlayerScores(payload.new);
     },
   );
 
-  gameChannel.value.subscribe(async (status) => {
+  // Initialize realtime tracking
+  gameChannel.value?.subscribe(async (status) => {
     if (status === "SUBSCRIBED") {
-      await trackMyStatus();
+      await trackMyStatus(
+        presenceJoinedAt,
+        myPresenceStatus.value,
+        playerId.value!,
+        user.value?.user_metadata?.full_name ?? "Unknown",
+      );
     }
   });
-  // ===============================================================
 
-  // Game already in progress, sync to current state
-  // ===============================================================
-  if (roomData.metadata?.round_status !== "lobby") {
+  // SYNC GAME STATE IF ALREADY STARTED
+  // SYNC GAME STATE IF ALREADY STARTED
+  const metadata = roomMetadata?.metadata;
+  if (metadata?.round_status && metadata.round_status !== "lobby") {
     const { data: handCardsData } = await supabase
       .from("hand_cards")
       .select("*")
       .eq("room_id", roomId.value)
       .eq("user_id", playerId.value);
+
     playerHandCards.value = handCardsData ?? [];
 
-    collectionCards.value = await supabase
+    const { data: cardsData } = await supabase
       .from("cards")
       .select("*")
-      .eq("collection_id", roomData.metadata.set_id);
+      .eq("collection_id", metadata.set_id);
 
+    collectionCards.value = cardsData ?? [];
+
+    blackCard.value = metadata.black_card;
     gameStarted.value = true;
-    handleGameStateChanges(roomData.metadata);
+    handleGameStateChanges(metadata);
   }
-  // ===============================================================
 });
-
-// ACTION - Start game
-const startGame = async () => {
-  if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
-    if (players.value.length < 2)
-      authError.value = "Need at least 2 players to start.";
-    return;
-  }
-
-  if (isStartingGame.value) return;
-  isStartingGame.value = true;
-
-  try {
-    // Fetch available card sets and pick the first one
-    const sets = await getCardCollections();
-    if (!sets || sets.length === 0) {
-      authError.value = "No card sets available.";
-      return;
-    }
-
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "game_initialize",
-      payload: { set_id: sets[0].id }, // For now we just hardcode a set, but you could add a UI to select one
-    });
-
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "game_start",
-    });
-
-    const { data: edgeInitializeData } = await supabase.functions.invoke(
-      "initialize_game",
-      {
-        method: "POST",
-        body: { set_id: sets[0].id, room_id: roomId.value, cardsPerPlayer: 8 },
-      },
-    );
-
-    if (!edgeInitializeData) {
-      authError.value = "Failed to assign hand cards.";
-      return;
-    }
-
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "cards_dealt",
-    });
-  } finally {
-    isStartingGame.value = false;
-  }
-};
 
 async function handleGameStateChanges(currentMetaData: object) {
   gameState.value = currentMetaData;
@@ -633,12 +433,71 @@ async function handleRoundEnd(currentMetaData: object) {
   resetWinnerSelection();
 }
 
+// ACTION - Start game
+const startGame = async () => {
+  if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
+    if (players.value.length < 2)
+      authError.value = "Need at least 2 players to start.";
+    return;
+  }
+
+  if (isStartingGame.value) return;
+  isStartingGame.value = true;
+
+  try {
+    // Fetch available card sets and pick the first one
+    const sets = await getCardCollections();
+    if (!sets || sets.length === 0) {
+      authError.value = "No card sets available.";
+      return;
+    }
+
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "game_initialize",
+      payload: { set_id: sets[0].id }, // For now we just hardcode a set, but you could add a UI to select one
+    });
+
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "game_start",
+    });
+
+    const { data: edgeInitializeData } = await supabase.functions.invoke(
+      "initialize_game",
+      {
+        method: "POST",
+        body: {
+          set_id: sets[0].id,
+          room_id: roomId.value,
+          cardsPerPlayer: 8,
+          dev2gaps: dev2gaps.value,
+        },
+      },
+    );
+
+    if (!edgeInitializeData) {
+      authError.value = "Failed to assign hand cards.";
+      return;
+    }
+
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "cards_dealt",
+    });
+  } finally {
+    isStartingGame.value = false;
+  }
+};
+
+// ACTION - Choose white card
 const chooseCard = async (card) => {
   if (isCzar.value) return;
 
   pickWhiteCard(card);
 };
 
+// ACTION - Submit chosen white cards
 const submitWhiteCards = async () => {
   await submitWhiteCardSelection(async (selectedCards) => {
     const { data, error } = await supabase.functions.invoke(
@@ -673,11 +532,13 @@ const submitWhiteCards = async () => {
   });
 };
 
+// ACTION - Pick winner (Czar)
 const pickWinnerCard = (playerSubmission) => {
   if (!isCzar.value) return;
   pickWinnerSubmission(playerSubmission);
 };
 
+// ACTION - Submit winner selection (Czar)
 const chooseWinner = async () => {
   if (!isCzar.value) return;
 
@@ -707,6 +568,7 @@ const chooseWinner = async () => {
   }
 };
 
+// ACTION - Start next round (Czar)
 const nextRound = async () => {
   if (!isCzar.value) return;
   if (isStartingNextRound.value) return;
@@ -737,39 +599,15 @@ const nextRound = async () => {
   }
 };
 
-const handleLeaveRoom = async () => {
-  if (!roomId.value || !playerId.value) return;
-  await leaveRoom(roomId.value, playerId.value);
-};
-
-// const leaveRoom = async () => {
-//   const { error } = await supabase
-//     .from("room_members")
-//     .delete()
-//     .eq("room_id", roomId.value)
-//     .eq("user_id", playerId.value);
-
-//   if (error) {
-//     console.error("Error leaving room:", error);
-//     return;
-//   }
-
-//   isLeaving.value = true;
-//   await navigateTo("/");
-// };
-
-const markMemberInactive = async () => {
-  if (!playerId.value || !roomId.value) return;
-  await supabase
-    .from("room_members")
-    .update({ is_active: false, left_at: new Date().toISOString() })
-    .eq("room_id", roomId.value)
-    .eq("user_id", playerId.value);
-};
-
 onUnmounted(() => {
-  if (!isLeaving.value) markMemberInactive();
+  if (!isLeaving.value) markMemberInactive(roomId.value, playerId.value);
   if (gameChannel.value) supabase.removeChannel(gameChannel.value);
+});
+
+const dev2gaps = ref(false);
+
+watch(dev2gaps, () => {
+  console.log("dev2gaps changed: ", dev2gaps.value);
 });
 </script>
 
@@ -790,7 +628,7 @@ onUnmounted(() => {
         </div>
         <div class="flex gap-2">
           <button
-            @click="handleLeaveRoom"
+            @click="deletePlayerFromRoomTable(roomId, playerId)"
             class="px-6 py-4 rounded-full text-gray-500 border border-gray-300 text-sm font-semibold rounded-xl hover:bg-gray-50"
           >
             Leave
@@ -837,16 +675,6 @@ onUnmounted(() => {
     </section>
 
     <p v-if="authError" class="text-red-500 text-sm mb-4">{{ authError }}</p>
-    <label
-      class="mb-2 inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600"
-    >
-      <input
-        v-model="enableBlackCardMinGapTest"
-        type="checkbox"
-        class="h-4 w-4"
-      />
-      Test mode: force at least 2 black-card gaps
-    </label>
     <p
       v-if="
         whiteCardPickError &&
@@ -983,37 +811,14 @@ onUnmounted(() => {
           roundStatus === 'round_start' &&
           isWhiteCardsSubmitted === false
         "
-        class="fixed bottom- left-1/2 -translate-x-1/2"
+        class="w-full flex-1"
       >
-        <div
-          class="relative h-[26rem] w-[46rem] max-w-[95vw] overflow-hidden"
-          @wheel.prevent="handleHandScroll"
-        >
-          <div
-            v-for="(card, index) in playerHandCards"
-            :key="card.id"
-            @click="chooseCard(card)"
-            class="absolute h-64 w-52 cursor-pointer transition-all duration-200 ease-out"
-            :style="handCardStyle(index)"
-          >
-            <div
-              class="flex h-full w-full items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 text-sm font-bold text-gray-800 shadow-md"
-              :class="
-                myChosenWhiteCards.some((c) => c.id === card.id)
-                  ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
-                  : 'bg-white'
-              "
-            >
-              <div class="text-center leading-5">
-                {{
-                  (collectionCards.data || []).find(
-                    (c) => c.id === card.card_id,
-                  )?.text || "Loading..."
-                }}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MyCarousel
+          :hand-cards="playerHandCards"
+          :collection-cards="availableCollectionCards"
+          :selected-card-ids="selectedHandCardIds"
+          @select-card="chooseCard"
+        />
       </div>
     </section>
 
@@ -1095,6 +900,23 @@ onUnmounted(() => {
       >
         {{ isStartingNextRound ? "Loading..." : "Next Round" }}
       </button>
+    </section>
+
+    <section
+      v-if="isGameMaster"
+      class="fixed bottom-4 right-4 p-4 bg-gray-300 rounded-full"
+      :class="roundStatus !== 'lobby' ? 'opacity-50' : ''"
+    >
+      <div class="flex flex-row gap-4">
+        <input
+          v-model="dev2gaps"
+          type="checkbox"
+          id="dev-2-gaps"
+          name="horns"
+          :disabled="roundStatus !== 'lobby'"
+        />
+        <label for="horns">dev-2-gaps</label>
+      </div>
     </section>
   </main>
 </template>
