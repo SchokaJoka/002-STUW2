@@ -1,7 +1,7 @@
-import type { Tables } from '../../types/database.types'
+import type { Tables } from "../../types/database.types";
 
-export type CardCollection = Tables<'collections'>
-export type Card = Tables<'cards'>
+export type CardCollection = Tables<"collections">;
+export type Card = Tables<"cards">;
 
 export const useCards = () => {
   const supabase = useSupabaseClient();
@@ -60,7 +60,7 @@ export const useCards = () => {
   // Fetch a set with all its cards
   const getCollectionWithCards = async (setId: string) => {
     const [set, blackCards, whiteCards] = await Promise.all([
-      supabase.from("sets").select("*").eq("id", setId).single(),
+      supabase.from("collections").select("*").eq("id", setId).single(),
       getBlackCards(setId),
       getWhiteCards(setId),
     ]);
@@ -101,7 +101,7 @@ export const useCards = () => {
   // Create a custom card set
   const createCustomSet = async (name: string, userId: string) => {
     const { data, error } = await supabase
-      .from("sets")
+      .from("collections")
       .insert({
         name,
         user_id: userId,
