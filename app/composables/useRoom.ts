@@ -9,10 +9,13 @@ export function useRoom() {
 
   // VARIABLES
   const supabase = useSupabaseClient();
-  const gameChannel = ref<RealtimeChannel | null>(null);
+  const gameChannel = useState<RealtimeChannel | null>(
+    "gameChannel",
+    () => null,
+  );
   const isLeaving = ref<boolean>(false);
   const gameStarted = ref<boolean>(false);
-  const players = ref<any[] | null>([]);
+  const players = useState<any[]>("players", () => []);
   const playerHandCards = ref<HandCards[]>([]);
   const collectionCards = ref<CollectionCards[]>([]);
 
@@ -187,9 +190,6 @@ export function useRoom() {
   }
 
   return {
-    // gameChannel ref
-    gameChannel,
-
     // Variables
     isLeaving,
     gameStarted,

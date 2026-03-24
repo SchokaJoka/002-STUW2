@@ -1,19 +1,76 @@
-import type { Tables } from "../../types/database.types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-export const useGameManager = () => {
+export function useGameManager() {
   const supabase = useSupabaseClient();
-  if (!supabase) {
-    console.error("Supabase client not initialized");
+
+  const players = useState<any[]>("players", () => []);
+  const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
+  const isGameMaster = useState<boolean>("isGameMaster", () => false);
+  
+  const isStartingGame = ref(false);
+  const isStartingNextRound = ref(false);
+  
+  const { getCardCollections } = useCards();
+
+  async function startGame(roomId: string, dev2gaps: boolean) {
+    if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
+      if (players.value.length < 2)
+        console.error("Need at least 2 players to start.");
+      return;
+    }
+
+    if (isStartingGame.value) return;
+    isStartingGame.value = true;
+
+    try {
+      // Fetch available card sets and pick the first one
+      const sets = await getCardCollections();
+      if (!sets || sets.length === 0) {
+        console.error("No card sets available.");
+        return;
+      }
+
+      gameChannel.value.send({
+        type: "broadcast",
+        event: "game_initialize",
+        payload: { set_id: sets[0].id }, // For now we just hardcode a set, but you could add a UI to select one
+      });
+
+      gameChannel.value.send({
+        type: "broadcast",
+        event: "game_start",
+      });
+
+      const { data: edgeInitializeData } = await supabase.functions.invoke(
+        "initialize_game",
+        {
+          method: "POST",
+          body: {
+            set_id: sets[0].id,
+            room_id: roomId,
+            cardsPerPlayer: 8,
+            dev2gaps: dev2gaps,
+          },
+        },
+      );
+
+      if (!edgeInitializeData) {
+        console.error("Failed to assign hand cards.");
+        return;
+      }
+
+      gameChannel.value.send({
+        type: "broadcast",
+        event: "cards_dealt",
+      });
+    } finally {
+      isStartingGame.value = false;
+    }
   }
 
-  const isStartingNextRound = ref(false);
-
-
-
   // ACTION - Start next round (Czar)
-  async function handleNextRound(roomId: string, gameChannel: Ref<RealtimeChannel>) {
-    if (!isCzar.value) return;
+  async function startNextRound(roomId: string | null) {
+    if (!roomId || !gameChannel.value) return;
     if (isStartingNextRound.value) return;
     isStartingNextRound.value = true;
 
@@ -37,14 +94,20 @@ export const useGameManager = () => {
           event: "cards_dealt",
         });
       }
-    } catch(error) {
-        
+    } catch (e) {
+      console.error("Error starting next round:", e);
     } finally {
       isStartingNextRound.value = false;
     }
-  };
+  }
 
   return {
-    handleNextRound,
+    // Variables
+    isStartingGame,
+    isStartingNextRound,
+
+    // Functions
+    startGame,
+    startNextRound,
   };
-};
+}
