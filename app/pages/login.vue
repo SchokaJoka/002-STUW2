@@ -128,7 +128,7 @@ const getRedirectPath = () => {
   if (route.query.redirect === "createGame") {
     return "/?action=createGame";
   } else if (route.query.redirect === "joinGame" && route.query.roomCode) {
-    return `/game/${route.query.roomCode}`;
+    return `/play/${route.query.roomCode}/lobby`;
   } else {
     return "/";
   }

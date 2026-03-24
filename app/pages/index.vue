@@ -171,7 +171,7 @@ const saveGuestName = async () => {
 
 // Nuxt's built-in navigation helper
 const navigateToRoom = async (roomCode) => {
-  await navigateTo(`/game/${roomCode}`)
+  await navigateTo(`/play/${roomCode}/lobby`);
 }
 
 // Generates a random 4-character string for easy sharing
