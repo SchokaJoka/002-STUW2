@@ -70,7 +70,7 @@ const getCardStyle = (index: number) => {
 
   const pivotX = 50; /* + (fixedRotationDeg / 45) * 50 */
 
-  const spacing = 30;
+  const spacing = 75;
   const translateX = offsetFromCenter * spacing;
 
   return {
@@ -84,7 +84,7 @@ const handleScroll = (event: WheelEvent) => {
   const now = Date.now();
   if (now - lastScrollAt < scrollLockMs) return;
 
-  const delta = event.deltaY > 0 ? 1 : -1;
+  const delta = event.deltaX > 0 ? 1 : -1;
 
   if (
     (delta === -1 && current.value <= 0) ||
@@ -109,6 +109,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .carousel-container {

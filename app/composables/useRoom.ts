@@ -1,5 +1,8 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import type { playerHandCards, collectionCards } from "~/types";
+import type { Tables } from "~~/types/database.types";
+
+type HandCards = Tables<"hand_cards">;
+type CollectionCards = Tables<"cards">;
 
 export function useRoom() {
   const user = useSupabaseUser();
@@ -10,8 +13,8 @@ export function useRoom() {
   const isLeaving = ref<boolean>(false);
   const gameStarted = ref<boolean>(false);
   const players = ref<any[] | null>([]);
-  const playerHandCards = ref<playerHandCards[]>([]);
-  const collectionCards = ref<collectionCards[]>([]);
+  const playerHandCards = ref<HandCards[]>([]);
+  const collectionCards = ref<CollectionCards[]>([]);
 
   // GET ROOM ID BY CODE
   async function getRoomIdByCode(roomCode: string): Promise<string | null> {
