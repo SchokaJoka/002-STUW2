@@ -1,25 +1,22 @@
-import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Tables } from "~~/types/database.types";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 type HandCards = Tables<"hand_cards">;
 type CollectionCards = Tables<"cards">;
 
 export function useRoom() {
   const user = useSupabaseUser();
+  const presenceJoinedAt: number = Date.now();
 
   // VARIABLES
   const supabase = useSupabaseClient();
-  const gameChannel = useState<RealtimeChannel | null>(
-    "gameChannel",
-    () => null,
-  );
+  const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
   const isLeaving = ref<boolean>(false);
   const gameStarted = ref<boolean>(false);
   const players = useState<any[]>("players", () => []);
   const playerHandCards = ref<HandCards[]>([]);
   const collectionCards = ref<CollectionCards[]>([]);
 
-  // GET ROOM ID BY CODE
   async function getRoomIdByCode(roomCode: string): Promise<string | null> {
     const { data } = await supabase
       .from("rooms")
@@ -49,7 +46,6 @@ export function useRoom() {
     return data;
   }
 
-  // INSERT PLAYER IN ROOM MEMBERS TABLE
   async function insertPlayerInRoomTable(roomId: string, playerId: string) {
     const { error } = await supabase.from("room_members").upsert(
       {
@@ -69,7 +65,6 @@ export function useRoom() {
     }
   }
 
-  // JOIN ROOM
   async function joinRoom(roomCode: string, playerId: string) {
     gameChannel.value = supabase.channel(`${roomCode}`, {
       config: { broadcast: { self: true }, presence: { key: playerId } },
@@ -81,7 +76,6 @@ export function useRoom() {
     }
   }
 
-  // LEAVE ROOM
   async function deletePlayerFromRoomTable(roomId: string, playerId: string) {
     if (!roomId || !playerId) return;
 
@@ -108,24 +102,17 @@ export function useRoom() {
       .eq("user_id", playerId);
   }
 
-  // TRACK MY STATUS
-  async function trackMyStatus(
-    joinedAt: number,
-    myPresenceStatus: string,
-    userId: string,
-    userName: string,
-  ) {
+  async function trackMyStatus(myPresenceStatus: string) {
     if (!gameChannel.value || !user.value || !user.value.sub) return;
 
     await gameChannel.value.track({
-      user_id: userId,
-      user_name: userName,
+      user_id: user.value.sub,
+      user_name: user.value.user_metadata?.full_name,
       status: myPresenceStatus,
-      joined_at: joinedAt,
+      joined_at: presenceJoinedAt,
     });
   }
 
-  // SETUP CHANNEL LISTENERS
   async function setupBroadcastListeners(roomId: string, playerId: string) {
     // Validation
     if (!gameChannel.value && !user.value) {

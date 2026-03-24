@@ -1,18 +1,55 @@
 <script setup lang="ts">
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const route = useRoute();
+// VARIABLES
+// ============================================================
 const user = useSupabaseUser();
 const supabase = useSupabaseClient();
-const { getCardCollections } = useCards();
-const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
+
+const route = useRoute();
+const roomCode = String(route.params.roomId ?? "").toUpperCase();
+const roomId = ref<string>("");
+const roomData = ref<{} | null>({});
 
 const players = useState<any[]>("players", () => []);
-const roomCode = String(route.params.roomId ?? "").toUpperCase();
-const playerScores = ref<Record<string, number | null>>({});
-const roomId = ref<string | null>(null);
-const playerId = ref<string | null>(null);
-const roomData = ref<{} | null>({});
+const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
+
+const playerId = ref<string>("");
+const isGameMaster = useState<boolean>("isGameMaster", () => false);
+
+watchEffect(() => {
+  isGameMaster.value =
+    !!playerId.value && playerId.value === gameMasterId.value;
+});
+
+const gameState = ref({});
+const roundStatus = ref("lobby");
+
+const blackCard = ref({});
+const myChosenWhiteCards = ref<any[]>([]);
+const playerSubmissions = ref<any[]>([]);
+const selectedPlayerSubmission = ref<any | null>(null);
+const isWhiteCardsSubmitted = ref(false);
+const isSubmittingWhiteCards = ref(false);
+const isChoosingWinner = ref(false);
+
+const GAP_TOKEN = "[[W1tnYXBdXQ==]]";
+
+const winnerUsername = ref(null);
+const winnerUserId = ref<string | null>(null);
+const winnerCards = ref(null);
+
+const authError = ref("");
+const winnerPickError = ref("");
+const whiteCardPickError = ref("");
+// ============================================================
+
+
+// COMPOSABLES
+// ============================================================
+const {
+  getCardCollections
+} = useCards();
 
 const {
   // Variables
@@ -39,53 +76,23 @@ const {
 
 
   // Functions
-  startGame,
-  startNextRound,
+  initializeGame,
+  initializeNextRound,
 } = useGameManager();
 
-const gameState = ref({});
-const roundStatus = ref("lobby");
+const {
+  getPlayerScore,
+  updatePlayerScoreFromMember,
+  syncPlayerScoresForRoom,
+} = usePlayerScores();
+// ============================================================
 
-const blackCard = ref({});
-const myChosenWhiteCards = ref<any[]>([]);
-const submittedWhiteCards = ref<any[]>([]);
-const isWhiteCardsSubmitted = ref(false);
-const isSubmittingWhiteCards = ref(false);
 
-const winnerUsername = ref(null);
-const winnerUserId = ref<string | null>(null);
-const winnerCards = ref(null);
-const presenceJoinedAt: number = Date.now();
-
-const authError = ref("");
-const whiteCardPickError = ref("");
-const selectedWinnerSubmission = ref<any | null>(null);
-const winnerPickError = ref("");
-const isChoosingWinner = ref(false);
-
-const isWinnerSubmissionSelected = (playerSubmission: any) => {
-  if (!selectedWinnerSubmission.value || !playerSubmission) return false;
-
-  if (
-    selectedWinnerSubmission.value.id != null &&
-    playerSubmission.id != null
-  ) {
-    return selectedWinnerSubmission.value.id === playerSubmission.id;
-  }
-
-  return selectedWinnerSubmission.value.user_id === playerSubmission.user_id;
-};
-
+// COMPUTED PPROPERTIES
+// ============================================================
 const gameMasterId = computed(() => {
   const firstPlayer = (players.value as any[])[0];
   return firstPlayer?.user_id ?? null;
-});
-
-const isGameMaster = useState<boolean>("isGameMaster", () => false);
-
-watchEffect(() => {
-  isGameMaster.value =
-    !!playerId.value && playerId.value === gameMasterId.value;
 });
 
 const czarId = computed(() => {
@@ -98,8 +105,6 @@ const czarId = computed(() => {
 const isCzar = computed(() => {
   return !!playerId.value && playerId.value === czarId.value;
 });
-
-const GAP_TOKEN = "[[W1tnYXBdXQ==]]";
 
 const numberOfCardsToPlay = computed(() => {
   const card = blackCard.value as any;
@@ -157,18 +162,6 @@ const blackCardTextParts = computed(() => {
   return getTextParts(text);
 });
 
-const canEditChosenGaps = computed(() => {
-  return (
-    !isCzar.value &&
-    roundStatus.value === "round_start" &&
-    !isWhiteCardsSubmitted.value
-  );
-});
-
-const getPlayerDisplayStatus = (player: any) => {
-  return player.status || "unknown";
-};
-
 const myPresenceStatus = computed(() => {
   if (!gameStarted.value || roundStatus.value === "lobby") {
     return "waiting";
@@ -193,62 +186,15 @@ const myPresenceStatus = computed(() => {
 });
 
 watch(myPresenceStatus, async () => {
-  await trackMyStatus(
-    presenceJoinedAt,
-    myPresenceStatus.value,
-    playerId.value,
-    user.value.user_metadata?.full_name,
-  );
+  await trackMyStatus(myPresenceStatus.value);
 });
 
 const round = computed(() => {
   if (!gameState.value.round) return null;
   return gameState.value.round;
 });
-
-
-// Player Scores Handling
 // ============================================================
-const getPlayerScore = (userId: string) => {
-  const score = playerScores.value[userId];
-  return typeof score === "number" ? score : 0;
-};
 
-const playersWithScores = computed(() => {
-  return players.value.map((player: any) => ({
-    ...player,
-    score: getPlayerScore(player.user_id),
-  }));
-});
-
-function updatePlayerScores(updatedMember: any) {
-  if (!updatedMember?.user_id) return;
-  
-  playerScores.value[updatedMember.user_id] = updatedMember.points ?? 0;
-}
-
-async function syncPlayerScoresForRoom() {
-  if (!roomId.value) return;
-  
-  const { data, error } = await supabase
-  .from("room_members")
-  .select("user_id, points")
-  .eq("room_id", roomId.value);
-  
-  if (error) {
-    console.error("Error syncing player points:", error);
-    return;
-  }
-  
-  const nextScores: Record<string, number> = {};
-  (data ?? []).forEach((member: any) => {
-    if (!member?.user_id) return;
-    nextScores[member.user_id] = member.points ?? 0;
-  });
-  
-  playerScores.value = nextScores;
-}
-// ============================================================
 
 // Game State Handling
 // ============================================================
@@ -269,7 +215,7 @@ async function handleGameStateChanges(currentMetaData: object) {
     default:
       console.warn("Unknown round status:", currentMetaData.round_status);
   }
-}
+};
 
 async function handleRoundStart(currentMetaData: object) {
   gameState.value = currentMetaData;
@@ -289,7 +235,7 @@ async function handleRoundStart(currentMetaData: object) {
 
   isWhiteCardsSubmitted.value = data[0].status === "submitted";
   blackCard.value = currentMetaData.black_card;
-}
+};
 
 async function handleRoundSubmitted(currentMetaData: object) {
   gameState.value = currentMetaData;
@@ -321,9 +267,9 @@ async function handleRoundSubmitted(currentMetaData: object) {
   isWhiteCardsSubmitted.value = false;
   blackCard.value = currentMetaData.black_card;
 
-  submittedWhiteCards.value = data ?? [];
-  console.log("submittedWhiteCards: ", submittedWhiteCards.value);
-}
+  playerSubmissions.value = data ?? [];
+  console.log("submittedWhiteCards: ", playerSubmissions.value);
+};
 
 async function handleRoundEnd(currentMetaData: object) {
   const winnerId = currentMetaData.current_winner.user_id;
@@ -333,55 +279,22 @@ async function handleRoundEnd(currentMetaData: object) {
     players.value.find((p) => p.user_id === winnerId)?.user_name || null;
   winnerCards.value =
     currentMetaData.current_winner.metadata?.submitted_cards || null;
-}
+};
 
-async function handleNextRound() {
+async function startGame() {
+  await initializeGame(roomId.value, dev2gaps.value);
+};
+
+async function startNexRound() {
   resetWinner();
-  startNextRound(roomId.value);
-}
+  initializeNextRound(roomId.value);
+};
 // ============================================================
+
 
 // Player Choose White Card Handling
 // ============================================================
-const getChosenWhiteCardAtGap = (gapIndex?: number) => {
-  if (typeof gapIndex !== "number") return null;
-  if (!Number.isFinite(gapIndex) || gapIndex < 0) return null;
-  
-  return myChosenWhiteCards.value[gapIndex] ?? null;
-};
-
-const removeChosenWhiteCardAtGapRaw = (gapIndex?: number) => {
-  if (typeof gapIndex !== "number") return;
-  if (!Number.isFinite(gapIndex) || gapIndex < 0) return;
-  if (gapIndex >= myChosenWhiteCards.value.length) return;
-  
-  myChosenWhiteCards.value.splice(gapIndex, 1);
-};
-
-const getChosenWhiteCardTextAtGap = (gapIndex?: number) => {
-  if (typeof gapIndex !== "number") return null;
-  
-  const chosenCard = getChosenWhiteCardAtGap(gapIndex);
-  if (!chosenCard) return null;
-  
-  const chosenCardId = chosenCard.card_id ?? chosenCard.id;
-  if (!chosenCardId) return null;
-  
-  const cardText = availableCollectionCards.value.find(
-    (c: any) => c.id === chosenCardId,
-  )?.text;
-  
-  return typeof cardText === "string" ? cardText : null;
-};
-
-const removeChosenWhiteCardAtGap = (gapIndex?: number) => {
-  if (!canEditChosenGaps.value) return;
-  if (typeof gapIndex !== "number") return;
-  
-  removeChosenWhiteCardAtGapRaw(gapIndex);
-};
-
-const chooseCard = async (card) => {
+async function pickCard(card) {
   if (isCzar.value) return;
 
   whiteCardPickError.value = "";
@@ -401,7 +314,12 @@ const chooseCard = async (card) => {
   }
 };
 
-const submitWhiteCards = async () => {
+async function resetCards() {
+  myChosenWhiteCards.value = [];
+  whiteCardPickError.value = "";
+};
+
+async function submitCards() {
   if (myChosenWhiteCards.value.length === numberOfCardsToPlay.value) {
     if (isSubmittingWhiteCards.value) return;
     isSubmittingWhiteCards.value = true;
@@ -454,29 +372,30 @@ const submitWhiteCards = async () => {
 };
 // ============================================================
 
+
 // Czar Choose Winner Handling
 // ============================================================
-const pickWinner = (playerSubmission) => {
+async function pickWinner(playerSubmission: any) {
   if (!isCzar.value) return;
-  selectedWinnerSubmission.value = playerSubmission;
+  selectedPlayerSubmission.value = playerSubmission;
   winnerPickError.value = "";
 };
 
-const resetWinner = () => {
-  selectedWinnerSubmission.value = null;
+async function resetWinner() {
+  selectedPlayerSubmission.value = null;
   winnerPickError.value = "";
 };
 
-async function submitWinner(chosenPlayerSubmittion) {
+async function submitWinner(winnerSubmission: any) {
   if (!isCzar.value) return;
 
-  console.log("Selected winner: ", chosenPlayerSubmittion);
+  console.log("Selected winner: ", winnerSubmission);
 
   const { data, error } = await supabase.functions.invoke("select_winner", {
     method: "POST",
     body: {
       room_id: roomId.value,
-      winner: chosenPlayerSubmittion,
+      winner: winnerSubmission,
     },
   });
 
@@ -487,6 +406,7 @@ async function submitWinner(chosenPlayerSubmittion) {
   }
 };
 // ============================================================
+
 
 // onMounted, onUnmounted
 // ============================================================
@@ -522,6 +442,7 @@ onMounted(async () => {
 
   // Realtime socket listeners
   await setupBroadcastListeners(roomId.value, playerId.value);
+  await syncPlayerScoresForRoom(roomId.value);
 
   // Realtime table listeners
   gameChannel.value?.on(
@@ -548,19 +469,19 @@ onMounted(async () => {
     },
     (payload) => {
       console.log("[POSTGRES CHANGES] room_members updated: ", payload);
-      updatePlayerScores(payload.new);
+      updatePlayerScoreFromMember(payload.new);
+
+      if (payload.new.status !== payload.old.status) {
+        // status update
+        // TO DO!
+      }
     },
   );
 
   // Initialize realtime tracking
   gameChannel.value?.subscribe(async (status) => {
     if (status === "SUBSCRIBED") {
-      await trackMyStatus(
-        presenceJoinedAt,
-        myPresenceStatus.value,
-        playerId.value!,
-        user.value?.user_metadata?.full_name ?? "Unknown",
-      );
+      await trackMyStatus(myPresenceStatus.value);
     }
   });
 
@@ -582,7 +503,7 @@ onMounted(async () => {
 
     collectionCards.value = cardsData ?? [];
 
-    await syncPlayerScoresForRoom();
+    await syncPlayerScoresForRoom(roomId.value);
 
     blackCard.value = metadata.black_card;
     gameStarted.value = true;
@@ -590,17 +511,80 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
-  if (!isLeaving.value) markMemberInactive(roomId.value, playerId.value);
-  if (gameChannel.value) supabase.removeChannel(gameChannel.value);
+onUnmounted(async () => {
+  if (!isLeaving.value) await markMemberInactive(roomId.value, playerId.value);
+  if (gameChannel.value) await supabase.removeChannel(gameChannel.value);
 });
 // ============================================================
+
+
+// OTHER
+// ============================================================
+const canEditChosenGaps = computed(() => {
+  return (
+    !isCzar.value &&
+    roundStatus.value === "round_start" &&
+    !isWhiteCardsSubmitted.value
+  );
+});
+
+const isWinnerSubmissionSelected = (playerSubmission: any) => {
+  if (!selectedPlayerSubmission.value || !playerSubmission) return false;
+
+  if (
+    selectedPlayerSubmission.value.id != null &&
+    playerSubmission.id != null
+  ) {
+    return selectedPlayerSubmission.value.id === playerSubmission.id;
+  }
+
+  return selectedPlayerSubmission.value.user_id === playerSubmission.user_id;
+};
+
+const getChosenWhiteCardAtGap = (gapIndex?: number) => {
+  if (typeof gapIndex !== "number") return null;
+  if (!Number.isFinite(gapIndex) || gapIndex < 0) return null;
+
+  return myChosenWhiteCards.value[gapIndex] ?? null;
+};
+
+const removeChosenWhiteCardAtGapRaw = (gapIndex?: number) => {
+  if (typeof gapIndex !== "number") return;
+  if (!Number.isFinite(gapIndex) || gapIndex < 0) return;
+  if (gapIndex >= myChosenWhiteCards.value.length) return;
+
+  myChosenWhiteCards.value.splice(gapIndex, 1);
+};
+
+const getChosenWhiteCardTextAtGap = (gapIndex?: number) => {
+  if (typeof gapIndex !== "number") return null;
+
+  const chosenCard = getChosenWhiteCardAtGap(gapIndex);
+  if (!chosenCard) return null;
+
+  const chosenCardId = chosenCard.card_id ?? chosenCard.id;
+  if (!chosenCardId) return null;
+
+  const cardText = availableCollectionCards.value.find(
+    (c: any) => c.id === chosenCardId,
+  )?.text;
+
+  return typeof cardText === "string" ? cardText : null;
+};
+
+const removeChosenWhiteCardAtGap = (gapIndex?: number) => {
+  if (!canEditChosenGaps.value) return;
+  if (typeof gapIndex !== "number") return;
+
+  removeChosenWhiteCardAtGapRaw(gapIndex);
+};
+// ============================================================
+
 
 // DEV DEBUGGING
 // ============================================================
 const dev2gaps = ref(false);
 // ============================================================
-
 </script>
 
 <template>
@@ -627,7 +611,7 @@ const dev2gaps = ref(false);
 
       <!-- Player List -->
       <div class="flex flex-row px-4 overflow-x-auto gap-2">
-        <div v-for="player in playersWithScores" :key="player.user_id"
+        <div v-for="player in players" :key="player.user_id"
           class="flex flex-col items-start justify-between gap-2 min-w-32 rounded-xl p-2 text-xs font-medium border transition-all"
           :class="czarId === player.user_id
             ? 'border-yellow-100 bg-yellow-100 text-yellow-700'
@@ -642,9 +626,9 @@ const dev2gaps = ref(false);
             <span v-if="player.user_id === playerId" class="text-md font-normal transition">(you)</span>
           </div>
           <div class="w-full flex flex-row items-center justify-between gap-2 transition">
-            <span class="">{{ player.score }}</span>
+            <span class="">{{ getPlayerScore(player.user_id) }}</span>
             <span class="text-[0.6rem] uppercase transition">{{
-              getPlayerDisplayStatus(player)
+              player.status
             }}</span>
           </div>
         </div>
@@ -734,7 +718,7 @@ const dev2gaps = ref(false);
       <div v-if="roundStatus === 'round_submitted'"
         class="mx-1 overflow-x-auto overflow-y-visible px-1 pb-3 pt-1 [scrollbar-width:thin]">
         <div class="flex w-max min-w-full flex-nowrap gap-4 snap-x snap-mandatory">
-          <template v-for="(playerSubmission, index) in submittedWhiteCards" :key="`${playerSubmission.id || index}`">
+          <template v-for="(playerSubmission, index) in playerSubmissions" :key="`${playerSubmission.id || index}`">
             <div v-for="cardId in playerSubmission.metadata?.submitted_cards || []"
               :key="`${playerSubmission.id}-${cardId}`" @click="isCzar && pickWinner(playerSubmission)"
               class="h-64 w-52 shrink-0 snap-start rounded-lg border border-gray-200 bg-white p-4 text-sm font-bold text-gray-800 shadow-sm transition-all"
@@ -759,7 +743,7 @@ const dev2gaps = ref(false);
         isWhiteCardsSubmitted === false
       " class="w-full flex-1">
         <MyCarousel :hand-cards="playerHandCards" :collection-cards="availableCollectionCards"
-          :selected-card-ids="selectedHandCardIds" @select-card="chooseCard" />
+          :selected-card-ids="selectedHandCardIds" @select-card="pickCard" />
       </div>
     </section>
 
@@ -768,7 +752,7 @@ const dev2gaps = ref(false);
       <p v-if="winnerPickError" class="text-red-500 text-sm">
         {{ winnerPickError }}
       </p>
-      <button @click="submitWinner(selectedWinnerSubmission)" :disabled="isChoosingWinner"
+      <button @click="submitWinner(selectedPlayerSubmission)" :disabled="isChoosingWinner"
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{ isChoosingWinner ? "Choosing..." : "Choose" }}
       </button>
@@ -787,7 +771,7 @@ const dev2gaps = ref(false);
       roundStatus === 'round_start' &&
       !isWhiteCardsSubmitted
     " class="fixed bottom-[max(env(safe-area-inset-top),1.5rem)] flex items-center transition-all">
-      <button @click="submitWhiteCards" :disabled="isSubmittingWhiteCards ||
+      <button @click="submitCards()" :disabled="isSubmittingWhiteCards ||
         myChosenWhiteCards.length !== numberOfCardsToPlay
         "
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
@@ -804,7 +788,7 @@ const dev2gaps = ref(false);
     <!-- Start Game Button -->
     <section v-if="!gameStarted && isGameMaster"
       class="fixed bottom-[max(env(safe-area-inset-top),1.5rem)] flex items-center transition-all">
-      <button @click="startGame(roomId, dev2gaps)" :disabled="isStartingGame"
+      <button @click="startGame()" :disabled="isStartingGame"
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{ isStartingGame ? "Starting..." : "Start Game" }}
       </button>
@@ -813,7 +797,7 @@ const dev2gaps = ref(false);
     <!-- Next Round Button -->
     <section v-if="roundStatus === 'round_end' && isCzar"
       class="fixed bottom-[max(env(safe-area-inset-top),1.5rem)] flex items-center transition-all">
-      <button @click="handleNextRound" :disabled="isStartingNextRound"
+      <button @click="startNexRound()" :disabled="isStartingNextRound"
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{ isStartingNextRound ? "Loading..." : "Next Round" }}
       </button>

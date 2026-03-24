@@ -12,7 +12,7 @@ export function useGameManager() {
   
   const { getCardCollections } = useCards();
 
-  async function startGame(roomId: string, dev2gaps: boolean) {
+  async function initializeGame(roomId: string, dev2gaps: boolean) {
     if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
       if (players.value.length < 2)
         console.error("Need at least 2 players to start.");
@@ -69,7 +69,7 @@ export function useGameManager() {
   }
 
   // ACTION - Start next round (Czar)
-  async function startNextRound(roomId: string | null) {
+  async function initializeNextRound(roomId: string | null) {
     if (!roomId || !gameChannel.value) return;
     if (isStartingNextRound.value) return;
     isStartingNextRound.value = true;
@@ -107,7 +107,7 @@ export function useGameManager() {
     isStartingNextRound,
 
     // Functions
-    startGame,
-    startNextRound,
+    initializeGame,
+    initializeNextRound,
   };
 }
