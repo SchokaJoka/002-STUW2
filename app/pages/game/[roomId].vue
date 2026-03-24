@@ -7,14 +7,14 @@ const user = useSupabaseUser();
 const supabase = useSupabaseClient();
 
 const route = useRoute();
-const roomCode = String(route.params.roomId ?? "").toUpperCase();
 const roomId = ref<string>("");
-const roomData = ref<{} | null>({});
+const playerId = ref<string>("");
+
+
+const roomCode = String(route.params.roomId ?? "").toUpperCase();
 
 const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
-
-const playerId = ref<string>("");
 const isGameMaster = useState<boolean>("isGameMaster", () => false);
 
 watchEffect(() => {
@@ -22,26 +22,25 @@ watchEffect(() => {
     !!playerId.value && playerId.value === gameMasterId.value;
 });
 
-const gameState = ref({});
-const roundStatus = ref("lobby");
+const gameState = ref<{}>({});
+const roundStatus = ref<string>("lobby");
 
-const blackCard = ref({});
+const blackCard = ref<{}>({});
 const myChosenWhiteCards = ref<any[]>([]);
 const playerSubmissions = ref<any[]>([]);
 const selectedPlayerSubmission = ref<any | null>(null);
-const isWhiteCardsSubmitted = ref(false);
-const isSubmittingWhiteCards = ref(false);
-const isChoosingWinner = ref(false);
+const isWhiteCardsSubmitted = ref<boolean>(false);
+const isSubmittingWhiteCards = ref<boolean>(false);
+const isChoosingWinner = ref<boolean>(false);
+const whiteCardPickError = ref<string>("");
 
-const GAP_TOKEN = "[[W1tnYXBdXQ==]]";
 
-const winnerUsername = ref(null);
-const winnerUserId = ref<string | null>(null);
-const winnerCards = ref(null);
+const GAP_TOKEN: string = "[[W1tnYXBdXQ==]]";
 
-const authError = ref("");
-const winnerPickError = ref("");
-const whiteCardPickError = ref("");
+const winnerUsername = ref<string>("");
+const winnerUserId = ref<string>("");
+const winnerCards = ref<[]>([]);
+
 // ============================================================
 
 
@@ -378,12 +377,10 @@ async function submitCards() {
 async function pickWinner(playerSubmission: any) {
   if (!isCzar.value) return;
   selectedPlayerSubmission.value = playerSubmission;
-  winnerPickError.value = "";
 };
 
 async function resetWinner() {
   selectedPlayerSubmission.value = null;
-  winnerPickError.value = "";
 };
 
 async function submitWinner(winnerSubmission: any) {
@@ -528,38 +525,10 @@ const canEditChosenGaps = computed(() => {
   );
 });
 
-const isWinnerSubmissionSelected = (playerSubmission: any) => {
-  if (!selectedPlayerSubmission.value || !playerSubmission) return false;
-
-  if (
-    selectedPlayerSubmission.value.id != null &&
-    playerSubmission.id != null
-  ) {
-    return selectedPlayerSubmission.value.id === playerSubmission.id;
-  }
-
-  return selectedPlayerSubmission.value.user_id === playerSubmission.user_id;
-};
-
-const getChosenWhiteCardAtGap = (gapIndex?: number) => {
-  if (typeof gapIndex !== "number") return null;
-  if (!Number.isFinite(gapIndex) || gapIndex < 0) return null;
-
-  return myChosenWhiteCards.value[gapIndex] ?? null;
-};
-
-const removeChosenWhiteCardAtGapRaw = (gapIndex?: number) => {
-  if (typeof gapIndex !== "number") return;
-  if (!Number.isFinite(gapIndex) || gapIndex < 0) return;
-  if (gapIndex >= myChosenWhiteCards.value.length) return;
-
-  myChosenWhiteCards.value.splice(gapIndex, 1);
-};
-
-const getChosenWhiteCardTextAtGap = (gapIndex?: number) => {
+const getWhiteCardTextAtGap = (gapIndex?: number) => {
   if (typeof gapIndex !== "number") return null;
 
-  const chosenCard = getChosenWhiteCardAtGap(gapIndex);
+  const chosenCard = myChosenWhiteCards.value[gapIndex];
   if (!chosenCard) return null;
 
   const chosenCardId = chosenCard.card_id ?? chosenCard.id;
@@ -572,11 +541,10 @@ const getChosenWhiteCardTextAtGap = (gapIndex?: number) => {
   return typeof cardText === "string" ? cardText : null;
 };
 
-const removeChosenWhiteCardAtGap = (gapIndex?: number) => {
-  if (!canEditChosenGaps.value) return;
-  if (typeof gapIndex !== "number") return;
-
-  removeChosenWhiteCardAtGapRaw(gapIndex);
+const deleteWhiteCardAtGap = (gapIndex?: number) => {
+  if (!canEditChosenGaps.value || !gapIndex) return;
+  if (gapIndex >= myChosenWhiteCards.value.length) return;
+  myChosenWhiteCards.value.splice(gapIndex, 1);
 };
 // ============================================================
 
@@ -622,20 +590,19 @@ const dev2gaps = ref(false);
           <div class="w-full flex flex-row items-center justify-start gap-1 transition">
             <span class="text-md font-bold transition">{{
               player.user_name
-            }}</span>
+              }}</span>
             <span v-if="player.user_id === playerId" class="text-md font-normal transition">(you)</span>
           </div>
           <div class="w-full flex flex-row items-center justify-between gap-2 transition">
             <span class="">{{ getPlayerScore(player.user_id) }}</span>
             <span class="text-[0.6rem] uppercase transition">{{
               player.status
-            }}</span>
+              }}</span>
           </div>
         </div>
       </div>
     </section>
 
-    <p v-if="authError" class="text-red-500 text-sm mb-4">{{ authError }}</p>
     <p v-if="
       whiteCardPickError &&
       !isCzar &&
@@ -678,20 +645,20 @@ const dev2gaps = ref(false);
           class="relative h-64 w-52 rounded-lg bg-gray-900 p-6 text-lg font-bold text-white shadow-md">
           <div>
             <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`">
-              <span v-if="part.isGap" @click="removeChosenWhiteCardAtGap(part.gapIndex)"
-                :title="getChosenWhiteCardTextAtGap(part.gapIndex) || '•••'"
+              <span v-if="part.isGap" @click="deleteWhiteCardAtGap(part.gapIndex)"
+                :title="getWhiteCardTextAtGap(part.gapIndex) || '•••'"
                 class="mx-1 inline-flex h-8 w-24 min-w-24 items-center justify-center overflow-hidden rounded-md border border-white/40 bg-white/10 px-3 py-1 align-middle text-sm font-semibold text-white/90 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                 :class="[
                   canEditChosenGaps &&
-                    getChosenWhiteCardTextAtGap(part.gapIndex)
+                    getWhiteCardTextAtGap(part.gapIndex)
                     ? 'cursor-pointer hover:border-white/70 hover:bg-white/20'
                     : 'cursor-default',
-                  getChosenWhiteCardTextAtGap(part.gapIndex)
+                  getWhiteCardTextAtGap(part.gapIndex)
                     ? 'tracking-normal'
                     : 'tracking-[0.35em] text-white/80',
                 ]">
                 <span class="block w-full truncate text-center">
-                  {{ getChosenWhiteCardTextAtGap(part.gapIndex) || "•••" }}
+                  {{ getWhiteCardTextAtGap(part.gapIndex) || "•••" }}
                 </span>
               </span>
               <span v-else>{{ part.text }}</span>
@@ -718,7 +685,7 @@ const dev2gaps = ref(false);
       <div v-if="roundStatus === 'round_submitted'"
         class="mx-1 overflow-x-auto overflow-y-visible px-1 pb-3 pt-1 [scrollbar-width:thin]">
         <div class="flex w-max min-w-full flex-nowrap gap-4 snap-x snap-mandatory">
-          <template v-for="(playerSubmission, index) in playerSubmissions" :key="`${playerSubmission.id || index}`">
+          <template v-for="playerSubmission in playerSubmissions" :key="`${playerSubmission.id}`">
             <div v-for="cardId in playerSubmission.metadata?.submitted_cards || []"
               :key="`${playerSubmission.id}-${cardId}`" @click="isCzar && pickWinner(playerSubmission)"
               class="h-64 w-52 shrink-0 snap-start rounded-lg border border-gray-200 bg-white p-4 text-sm font-bold text-gray-800 shadow-sm transition-all"
@@ -726,7 +693,7 @@ const dev2gaps = ref(false);
                 isCzar
                   ? 'cursor-pointer md:hover:-translate-y-1 md:hover:border-blue-300 md:hover:shadow-lg'
                   : 'cursor-default',
-                isWinnerSubmissionSelected(playerSubmission)
+                selectedPlayerSubmission?.user_id === playerSubmission.user_id
                   ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
                   : 'bg-white',
               ]">
@@ -749,9 +716,6 @@ const dev2gaps = ref(false);
 
     <section v-if="gameStarted && isCzar && roundStatus === 'round_submitted'"
       class="fixed bottom-[max(env(safe-area-inset-top),1.5rem)] flex flex-col items-center gap-2 transition-all">
-      <p v-if="winnerPickError" class="text-red-500 text-sm">
-        {{ winnerPickError }}
-      </p>
       <button @click="submitWinner(selectedPlayerSubmission)" :disabled="isChoosingWinner"
         class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{ isChoosingWinner ? "Choosing..." : "Choose" }}
