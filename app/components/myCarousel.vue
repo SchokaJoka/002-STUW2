@@ -1,6 +1,10 @@
 <template>
   <section class="carousel-wrap">
-    <div class="carousel-container" @wheel.prevent="handleScroll">
+    <div
+      ref="carouselContainerRef"
+      class="carousel-container"
+      @wheel.prevent="handleScroll"
+    >
       <article
         v-for="(handCard, index) in handCards"
         :key="String(handCard.id)"
@@ -16,6 +20,11 @@
 </template>
 
 <script setup lang="ts">
+import gsap from "gsap";
+import { Draggable } from "gsap/draggable";
+
+gsap.registerPlugin(Draggable);
+
 type HandCard = {
   id: string | number;
   card_id: string;
@@ -36,9 +45,13 @@ const emit = defineEmits<{
   (event: "select-card", card: HandCard): void;
 }>();
 
+const carouselContainerRef = ref<HTMLDivElement | null>(null);
 const current = ref(0);
 const scrollLockMs = 120;
 let lastScrollAt = 0;
+const isMobile = ref(false);
+let draggable: InstanceType<typeof Draggable> | null = null;
+let lastDragX = 0;
 
 const maxIndex = computed(() => Math.max(0, props.handCards.length - 1));
 
@@ -60,16 +73,11 @@ const emitSelect = (card: HandCard) => emit("select-card", card);
 
 const getCardStyle = (index: number) => {
   const offsetFromCenter = index - current.value;
-
-  // Feste Rotation für jede Karte (ändert sich nicht beim Scrollen)
   const fixedRotationDeg = (index - Math.floor(maxIndex.value / 2)) * 10;
-
-  // Z-index ändert sich beim Scrollen - welche Karte ist zu oberst sichtbar
   const zIndex =
     offsetFromCenter === 0 ? 1000 : 100 - Math.abs(offsetFromCenter);
 
-  const pivotX = 50; /* + (fixedRotationDeg / 45) * 50 */
-
+  const pivotX = 50;
   const spacing = 75;
   const translateX = offsetFromCenter * spacing;
 
@@ -81,6 +89,8 @@ const getCardStyle = (index: number) => {
 };
 
 const handleScroll = (event: WheelEvent) => {
+  if (isMobile.value) return;
+
   const now = Date.now();
   if (now - lastScrollAt < scrollLockMs) return;
 
@@ -97,8 +107,77 @@ const handleScroll = (event: WheelEvent) => {
   lastScrollAt = now;
 };
 
+const initializeDraggable = () => {
+  if (!carouselContainerRef.value) return;
+  if (draggable) {
+    Draggable.get(carouselContainerRef.value)?.kill();
+  }
+
+  lastDragX = 0;
+
+  draggable = Draggable.create(carouselContainerRef.value, {
+    type: "x",
+    edgeResistance: 0.85, // Stronger resistance at edges
+    bounds: {
+      minX: -(maxIndex.value * 75), // Calculate based on max cards
+      maxX: 0,
+    },
+    inertia: true,
+    onPress: function () {
+      lastDragX = this.x;
+    },
+    onDrag: function () {
+      const deltaX = this.x - lastDragX;
+      const spacing = 75;
+      const movement = Math.round(deltaX / spacing);
+
+      if (movement !== 0) {
+        const newIndex = current.value - movement;
+        // Clamp to valid range
+        const clampedIndex = Math.max(0, Math.min(newIndex, maxIndex.value));
+        current.value = clampedIndex;
+        lastDragX = this.x;
+      }
+    },
+  })[0];
+};
+
+const handleResize = () => {
+  const wasDesktop = !isMobile.value;
+  isMobile.value = window.innerWidth < 640;
+  const isNowDesktop = !isMobile.value;
+
+  // If transitioning to mobile, initialize draggable
+  if (wasDesktop && !isNowDesktop && carouselContainerRef.value) {
+    initializeDraggable();
+  }
+  // If transitioning to desktop, kill draggable
+  else if (!wasDesktop && isNowDesktop && draggable) {
+    Draggable.get(carouselContainerRef.value)?.kill();
+    draggable = null;
+  }
+};
+
 onMounted(() => {
   current.value = Math.floor(maxIndex.value / 2);
+  isMobile.value = window.innerWidth < 640;
+
+  // Only initialize draggable on mobile
+  if (isMobile.value) {
+    nextTick(() => {
+      initializeDraggable();
+    });
+  }
+
+  window.addEventListener("resize", handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", handleResize);
+  if (draggable) {
+    Draggable.get(carouselContainerRef.value)?.kill();
+    draggable = null;
+  }
 });
 </script>
 <style scoped>
@@ -116,6 +195,7 @@ onMounted(() => {
   position: relative;
   width: 13rem;
   height: 16rem;
+  touch-action: none;
 }
 
 .card {
@@ -139,6 +219,7 @@ onMounted(() => {
     border-color 200ms ease,
     transform 300ms ease;
   transform-origin: center center;
+  user-select: none;
 }
 
 .card:hover {
@@ -159,5 +240,6 @@ onMounted(() => {
   font-weight: 700;
   line-height: 1.35;
   text-align: center;
+  pointer-events: none;
 }
 </style>
