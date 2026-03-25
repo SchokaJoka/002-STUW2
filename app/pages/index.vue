@@ -88,14 +88,12 @@
       <h1 class="w-full h-fit text-black text-5xl font-normal">
         Cards Against Humanity
       </h1>
-      <button @click="createGame()"
-        class="w-full h-24 px-6 py-3 bg-neutral-200 text-white rounded-xl hover:bg-neutral-300 transition">
-        <span class="text-black text-3xl font-normal">Create Game</span>
-      </button>
-      <button @click="joinGame()"
-        class="w-full h-24 px-6 py-3 bg-neutral-200 text-white rounded-xl hover:bg-neutral-300 transition">
-        <span class="text-black text-3xl font-normal">Join Game</span>
-      </button>
+      <Button @click="createGame()" variant="primary" size="lg" block class="rounded-xl">
+        Create Game
+      </Button>
+      <Button @click="joinGame()" variant="primary" size="lg" block class="rounded-xl">
+        Join Game
+      </Button>
     </div>
 
     <!-- How To Play -->

@@ -60,25 +60,32 @@
         <div
           class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black">
           <div class="w-full flex flex-row items-center justify-between cursor-pointer hover:text-blue-500">
-            <input v-model="roomCodeInput" placeholder="X4DD" type="text" class="w-full py-4 px-4 text-3xl font-normal">
-            </input>
-            <div class="flex items-center px-8 h-full bg-neutral-200 h-full">
+            <input
+              v-model="roomCodeInput"
+              placeholder="X4DD"
+              type="text"
+              class="w-full py-4 px-4 text-3xl font-normal"
+              @keyup.enter="joinRoom"
+            />
+            <div @click="joinRoom" class="flex items-center px-8 h-full bg-neutral-200 h-full">
               <span class="text-black text-md font-normal">Join</span>
             </div>
           </div>
         </div>
       </div>
+      
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
+const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const roomCodeInput = ref<string>("");
 
 const editingGuestName = ref(false);
 const guestNameEdit = ref("");
-const guestNameInput = ref(null);
+const guestNameInput = ref<HTMLInputElement | null>(null);
 
 const startEditGuestName = () => {
   guestNameEdit.value = user.value?.user_metadata?.full_name || "";
@@ -105,5 +112,13 @@ const saveGuestName = async () => {
   }
 
   editingGuestName.value = false;
+};
+
+const joinRoom = async () => {
+  const roomCode = roomCodeInput.value.trim().toUpperCase();
+
+  if (!roomCode) return;
+
+  await navigateTo(`/play/${roomCode}/lobby`);
 };
 </script>
