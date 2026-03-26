@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full flex items-center justify-center bg-neutral-300">
+    <main class="w-full flex items-center justify-center">
         <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
             <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
                 <div class="cursor-pointer" @click="navigateTo('/')">
@@ -11,26 +11,29 @@
                 </div>
                 <p class="text-black text-4xl font-bold">Sets</p>
             </div>
-            <div class="top-24 w-full flex flex-row bg-white z-10">
-                <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
-                    :class="activeTab === 'page1'
-                        ? 'text-black bg-neutral-300'
-                        : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
-                    My Sets
-                </button>
-                <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
-                    :class="activeTab === 'page2'
-                        ? 'text-black bg-neutral-300'
-                        : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
-                    Available Sets
-                </button>
+            <div class="w-full flex flex-row justify-center bg-white z-10">
+                <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
+                    <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
+                        :class="activeTab === 'page1'
+                            ? 'text-black bg-neutral-300'
+                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
+                        My Sets
+                    </button>
+                    <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
+                        :class="activeTab === 'page2'
+                            ? 'text-black bg-neutral-300'
+                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
+                        Available Sets
+                    </button>
+                </div>
+
             </div>
         </header>
 
-        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-2xl">
-            <div class="flex flex-col h-full w-full pt-[var(--sets-header-h)]">
+        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl bg-neutral-300">
+            <div class="flex flex-col h-full w-full mt-[var(--sets-header-h)]">
 
-                <div class="h-fit flex flex-col p-4 min-h-screen bg-neutral-300">
+                <div class="h-fit flex flex-col p-4 min-h-screen">
                     <div v-if="isLoading" class="flex flex-col gap-4 animate-pulse">
                         <div v-for="n in placeholderRows" :key="n"
                             class="w-full flex items-center gap-4 bg-neutral-100 p-5 rounded-lg border border-[3px] border-black/20">
@@ -195,9 +198,5 @@ onBeforeUnmount(() => {
 .tab-fade-leave-to {
     opacity: 0;
     transform: translateY(8px);
-}
-
-body {
-    @apply bg-neutral-300;
 }
 </style>

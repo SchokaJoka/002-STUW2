@@ -1,5 +1,5 @@
 <template>
-  <main class="w-full flex items-center justify-center bg-neutral-300">
+  <main class="w-full flex items-center justify-center">
     <header class="fixed top-0 w-full flex items-center justify-start p-4 bg-white z-40">
       <div class="cursor-pointer" @click="handleMenuToggle">
         <svg xmlns="http://www.w3.org/2000/svg" width="29" height="24" viewBox="0 0 29 24"
@@ -20,14 +20,6 @@
         class="absolute left-0 top-0 h-svh w-64 flex flex-col bg-white shadow-lg transition-transform duration-300 ease-out"
         :class="isMenuOpen ? 'translate-x-0' : '-translate-x-full'">
         <div class="flex items-center justify-between p-4">
-          <!-- <div class="cursor-pointer" @click="closeMenu">
-          <svg xmlns="http://www.w3.org/2000/svg" width="29" height="24" viewBox="0 0 29 24"
-            class="stroke-black stroke-[4]">
-            <line y1="2" x2="29" y2="2" />
-            <line y1="12" x2="29" y2="12" />
-            <line y1="22" x2="29" y2="22" />
-          </svg>
-        </div> -->
           <div class="h-[24px]"></div>
         </div>
 
