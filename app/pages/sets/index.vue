@@ -187,7 +187,3 @@ onBeforeUnmount(() => {
     window.removeEventListener("resize", updateHeaderHeight);
 });
 </script>
-
-<style scoped>
-
-</style>

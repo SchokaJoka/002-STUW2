@@ -206,16 +206,3 @@ onBeforeUnmount(() => {
     window.removeEventListener("resize", updateHeaderHeight);
 });
 </script>
-
-<style scoped>
-.tab-fade-enter-active,
-.tab-fade-leave-active {
-    transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.tab-fade-enter-from,
-.tab-fade-leave-to {
-    opacity: 0;
-    transform: translateY(8px);
-}
-</style>
