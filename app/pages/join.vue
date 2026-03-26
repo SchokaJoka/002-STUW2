@@ -1,6 +1,6 @@
 <template>
   <main class="w-full flex items-center justify-center">
-    <header class="fixed top-0 w-full flex items-center justify-start p-4 bg-white z-10">
+    <header class="fixed top-0 w-full flex items-center justify-start p-4 z-10">
       <div class="cursor-pointer" @click="navigateTo('/')">
         <svg xmlns="http://www.w3.org/2000/svg" width="38" height="33" viewBox="0 0 38 33" fill="none">
           <path
@@ -9,12 +9,12 @@
         </svg>
       </div>
     </header>
-  
+
     <main class="relative flex flex-col items-center justify-center min-h-svh w-full max-w-2xl p-8 gap-8">
       <div class="flex flex-col items-center justify-center h-svh w-full p-8 gap-8">
         <div class="size-32 rounded-full border-[3px] border-black flex items-center justify-center">
         </div>
-  
+
         <!-- Guest Name Input -->
         <div v-if="user" class="flex flex-col gap-2 w-full">
           <div v-if="editingGuestName"
@@ -47,29 +47,29 @@
             </button>
           </div>
         </div>
-  
+
         <!-- Login Action -->
         <div v-if="!user || !user.is_anomymous" class="w-full flex flex-row items-center justify-end gap-4">
           <p v-if="user" class="text-black text-md font-normal">or</p>
-          <button class="px-6 py-4 bg-neutral-200 text-white rounded-xl hover:bg-neutral-300 transition">
-            <span class="text-black text-md font-normal">Login / Sign Up</span>
-          </button>
+          <Button variant="secondary" size="md" @click="navigateTo('/login')">
+            Login / Sign Up
+          </Button>
         </div>
-  
+
         <!-- Join Room by Code -->
         <div class="flex flex-col gap-2 w-full">
           <div
             class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black">
             <div class="w-full flex flex-row items-center justify-between cursor-pointer hover:text-blue-500">
-              <input v-model="roomCodeInput" placeholder="X4DD" type="text" class="w-full py-4 px-4 text-3xl font-normal"
-                @keyup.enter="joinRoom" />
+              <input v-model="roomCodeInput" placeholder="X4DD" type="text"
+                class="w-full py-4 px-4 text-3xl font-normal" @keyup.enter="joinRoom" />
               <div @click="joinRoom" class="flex items-center px-8 h-full bg-neutral-200 h-full">
                 <span class="text-black text-md font-normal">Join</span>
               </div>
             </div>
           </div>
         </div>
-  
+
       </div>
     </main>
   </main>

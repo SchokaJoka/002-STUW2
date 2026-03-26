@@ -1,7 +1,7 @@
 <template>
   <main class="w-full flex items-center justify-center">
     <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
-      <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
+      <div class="flex flex-row items-center w-full gap-4 p-4">
         <div class="cursor-pointer" @click="navigateTo('/')">
           <svg xmlns="http://www.w3.org/2000/svg" width="38" height="33" viewBox="0 0 38 33" fill="none">
             <path
@@ -13,16 +13,14 @@
       </div>
       <div class="w-full flex flex-row justify-center bg-white z-10">
         <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
-          <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
-            :class="activeTab === 'login'
-              ? 'text-black bg-neutral-300'
-              : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'login'">
+          <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg" :class="activeTab === 'login'
+            ? 'text-black bg-neutral-300'
+            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="switchTab('login')">
             Login
           </button>
-          <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
-            :class="activeTab === 'signup'
-              ? 'text-black bg-neutral-300'
-              : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'signup'">
+          <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg" :class="activeTab === 'signup'
+            ? 'text-black bg-neutral-300'
+            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="switchTab('signup')">
             Sign Up
           </button>
         </div>
@@ -32,68 +30,66 @@
     <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl bg-neutral-300">
       <div class="flex flex-col h-full w-full mt-[var(--auth-header-h)]">
         <div class="h-fit flex flex-col p-4 min-h-screen">
-          <Transition name="tab-fade" mode="out-in">
-            <div :key="activeTab">
-              <!-- LOGIN TAB -->
-              <div v-if="activeTab === 'login'" class="flex flex-col gap-4">
-                <div class="bg-neutral-50 p-5 rounded-lg border border-[3px] border-black">
-                  <h2 class="text-2xl font-bold mb-4">Login to Your Account</h2>
-                  <input v-model="email" type="email" placeholder="Email"
-                    class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleLogin()" />
-                  <input v-model="password" type="password" placeholder="Password"
-                    class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleLogin()" />
+          <div :key="activeTab">
+            <!-- LOGIN TAB -->
+            <div v-if="activeTab === 'login'" class="flex flex-col gap-4">
+              <div class="bg-neutral-50 p-5 rounded-lg border border-[3px] border-black">
+                <h2 class="text-2xl font-bold mb-4">Login to Your Account</h2>
+                <input v-model="email" type="email" placeholder="Email"
+                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleLogin()" />
+                <input v-model="password" type="password" placeholder="Password"
+                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleLogin()" />
 
-                  <Button variant="secondary" block size="md" @click="handleLogin()" :disabled="loading"
-                    :loading="loading">
-                    Login
-                  </Button>
+                <Button variant="secondary" block size="md" @click="handleLogin()" :disabled="loading"
+                  :loading="loading">
+                  Login
+                </Button>
 
-                  <div class="my-4 border-t-2 border-black"></div>
+                <div class="my-4 border-t-2 border-black"></div>
 
-                  <h3 class="text-lg font-semibold mb-3">Or continue as guest</h3>
-                  <input v-model="guestUsername" type="text" placeholder="Username (min 3 characters)"
-                    class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleAnonymousLogin()" />
+                <h3 class="text-lg font-semibold mb-3">Or continue as guest</h3>
+                <input v-model="guestUsername" type="text" placeholder="Username (min 3 characters)"
+                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleAnonymousLogin()" />
 
-                  <Button variant="secondary" block size="md" @click="handleAnonymousLogin()" :disabled="loading"
-                    :loading="loading">
-                    Play as Guest
-                  </Button>
+                <Button variant="secondary" block size="md" @click="handleAnonymousLogin()" :disabled="loading"
+                  :loading="loading">
+                  Play as Guest
+                </Button>
 
-                  <p v-if="errorMessage" class="text-red-500 mt-4 text-sm">
-                    {{ errorMessage }}
-                  </p>
-                  <p v-if="successMessage" class="text-green-500 mt-4 text-sm">
-                    {{ successMessage }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- SIGN UP TAB -->
-              <div v-else-if="activeTab === 'signup'" class="flex flex-col gap-4">
-                <div class="bg-neutral-50 p-5 rounded-lg border border-[3px] border-black">
-                  <h2 class="text-2xl font-bold mb-4">Create Your Account</h2>
-                  <input v-model="signupEmail" type="email" placeholder="Email"
-                    class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleSignUp()" />
-                  <input v-model="signupPassword" type="password" placeholder="Password (min 6 characters)"
-                    class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleSignUp()" />
-                  <input v-model="signupUsername" type="text" placeholder="Username (min 3 characters)"
-                    class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleSignUp()" />
-
-                  <Button variant="secondary" block size="md" @click="handleSignUp()" :disabled="loading"
-                    :loading="loading">
-                    Sign Up
-                  </Button>
-
-                  <p v-if="errorMessage" class="text-red-500 mt-4 text-sm">
-                    {{ errorMessage }}
-                  </p>
-                  <p v-if="successMessage" class="text-green-500 mt-4 text-sm">
-                    {{ successMessage }}
-                  </p>
-                </div>
+                <p v-if="errorMessage" class="text-red-500 mt-4 text-sm">
+                  {{ errorMessage }}
+                </p>
+                <p v-if="successMessage" class="text-green-500 mt-4 text-sm">
+                  {{ successMessage }}
+                </p>
               </div>
             </div>
-          </Transition>
+
+            <!-- SIGN UP TAB -->
+            <div v-else-if="activeTab === 'signup'" class="flex flex-col gap-4">
+              <div class="bg-neutral-50 p-5 rounded-lg border border-[3px] border-black">
+                <h2 class="text-2xl font-bold mb-4">Create Your Account</h2>
+                <input v-model="signupEmail" type="email" placeholder="Email"
+                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleSignUp()" />
+                <input v-model="signupPassword" type="password" placeholder="Password (min 6 characters)"
+                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleSignUp()" />
+                <input v-model="signupUsername" type="text" placeholder="Username (min 3 characters)"
+                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded" @keyup.enter="handleSignUp()" />
+
+                <Button variant="secondary" block size="md" @click="handleSignUp()" :disabled="loading"
+                  :loading="loading">
+                  Sign Up
+                </Button>
+
+                <p v-if="errorMessage" class="text-red-500 mt-4 text-sm">
+                  {{ errorMessage }}
+                </p>
+                <p v-if="successMessage" class="text-green-500 mt-4 text-sm">
+                  {{ successMessage }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -136,6 +132,12 @@ const updateHeaderHeight = () => {
   document.documentElement.style.setProperty("--auth-header-h", `${height}px`);
 };
 
+const switchTab = (tab: 'login' | 'signup') => {
+  activeTab.value = tab;
+  errorMessage.value = "";
+  successMessage.value = "";
+};
+
 const handleLogin = async () => {
   errorMessage.value = "";
   successMessage.value = "";
@@ -170,8 +172,8 @@ const handleSignUp = async () => {
   successMessage.value = "";
 
   // Validation
-  if (!signupEmail.value || !signupPassword.value) {
-    errorMessage.value = "Please enter both email and password";
+  if (!signupEmail.value || !signupPassword.value || !signupUsername.value) {
+    errorMessage.value = "Please enter email password and username";
     return;
   }
 
@@ -311,22 +313,14 @@ const handleAnonymousLogin = async () => {
 onMounted(() => {
   updateHeaderHeight();
   window.addEventListener("resize", updateHeaderHeight);
+
+  if (user.value?.is_anonymous && user.value?.user_metadata?.full_name) {
+    guestUsername.value = user.value.user_metadata.full_name;
+    signupUsername.value = user.value.user_metadata.full_name;
+  }
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", updateHeaderHeight);
 });
 </script>
-
-<style scoped>
-.tab-fade-enter-active,
-.tab-fade-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.tab-fade-enter-from,
-.tab-fade-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
-}
-</style>

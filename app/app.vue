@@ -10,6 +10,13 @@
   @apply bg-white;
 }
 
+
+:global(header) {
+  @apply bg-neutral-50;
+}
+
+
+
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition: opacity 300ms ease, transform 300ms ease;

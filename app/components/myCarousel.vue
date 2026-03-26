@@ -1,22 +1,10 @@
 <template>
   <section class="carousel-wrap">
-    <div
-      ref="carouselContainerRef"
-      class="carousel-container"
-      @wheel.prevent="handleScroll"
-      @touchstart.passive="handleTouchStart"
-      @touchmove.prevent="handleTouchMove"
-      @touchend="handleTouchEnd"
-      @touchcancel="handleTouchEnd"
-    >
-      <article
-        v-for="(handCard, index) in handCards"
-        :key="String(handCard.id)"
-        class="card"
-        :class="{ selected: isSelected(handCard) }"
-        :style="getCardStyle(index)"
-        @click="emitSelect(handCard)"
-      >
+    <div ref="carouselContainerRef" class="carousel-container" @wheel.prevent="handleScroll"
+      @touchstart.passive="handleTouchStart" @touchmove.prevent="handleTouchMove" @touchend="handleTouchEnd"
+      @touchcancel="handleTouchEnd">
+      <article v-for="(handCard, index) in handCards" :key="String(handCard.id)" class="card"
+        :class="{ selected: isSelected(handCard) }" :style="getCardStyle(index)" @click="emitSelect(handCard)">
         <p>{{ getCardText(handCard.card_id) }}</p>
       </article>
     </div>

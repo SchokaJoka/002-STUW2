@@ -1,6 +1,6 @@
 <template>
   <main class="w-full flex items-center justify-center">
-    <header class="fixed top-0 w-full flex items-center justify-start p-4 bg-white z-40">
+    <header class="fixed top-0 w-full flex items-center justify-start p-4 z-40">
       <div class="cursor-pointer" @click="handleMenuToggle">
         <svg xmlns="http://www.w3.org/2000/svg" width="29" height="24" viewBox="0 0 29 24"
           class="stroke-black stroke-[4]">
