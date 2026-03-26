@@ -79,7 +79,7 @@
       </aside>
     </div>
 
-    <main class="relative flex flex-col items-center justify-center min-h-svh w-full max-w-2xl p-8 gap-8">
+    <section class="relative flex flex-col items-center justify-center min-h-svh w-full max-w-2xl p-8 gap-8">
       <div class="flex flex-col items-center justify-center h-svh w-full p-8 gap-8">
         <h1 class="w-full h-fit text-black text-5xl font-normal">
           Der Kampf gegen das Bünzlitum
@@ -107,7 +107,7 @@
       </div>
 
       <p v-if="lobbyError" class="text-red-500 mt-4 text-sm">{{ lobbyError }}</p>
-    </main>
+    </section>
 
   </main>
 </template>
