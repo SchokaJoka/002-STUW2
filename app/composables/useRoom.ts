@@ -20,7 +20,7 @@ export function useRoom() {
   const playerHandCards = ref<HandCards[]>([]);
   const collectionCards = ref<CollectionCards[]>([]);
 
-  async function getRoomIdByCode(roomCode: string): Promise<string | null> {
+  async function getRoomIdByCode(roomCode: string): Promise<string> {
     const { data } = await supabase
       .from("rooms")
       .select("id, code, metadata")
@@ -29,7 +29,7 @@ export function useRoom() {
 
     if (!data) {
       console.error("Room does not exist.");
-      return null;
+      return "";
     }
     console.log("Room data:", data);
     return data.id;

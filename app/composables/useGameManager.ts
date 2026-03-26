@@ -13,6 +13,8 @@ export function useGameManager() {
   const isStartingGame = ref(false);
   const isStartingNextRound = ref(false);
 
+  let errorMessage = ref<string | null>(null);
+
   const { getCardCollections } = useCards();
 
   // async function setGameMasterIfNotExists(
@@ -38,18 +40,36 @@ export function useGameManager() {
     return data?.owner ?? null;
   }
 
-  async function initializeGame(roomId: string, dev2gaps: boolean) {
+  async function initializeGame(
+    roomId: string,
+    roomCode: string,
+    dev2gaps: boolean,
+  ) {
+    console.log("[GameManager] initializeGame called with:", {
+      roomId,
+      roomCode,
+      dev2gaps,
+    });
+
     if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
       console.log("[GameManager] gameChannel:", gameChannel.value);
       console.log("[GameManager] players:", players.value);
       console.log("[GameManager] isGameMaster:", isGameMaster.value);
       if (players.value.length < 2)
-        console.error("Need at least 2 players to start.");
+        //display error message on html page that at least 2 players are required
+        errorMessage.value =
+          "At least 2 players are required to start the game.";
       return;
     }
 
     if (isStartingGame.value) return;
     isStartingGame.value = true;
+
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "navigate_to_game",
+      payload: { roomCode },
+    });
 
     try {
       // Fetch available card sets and pick the first one
@@ -90,9 +110,13 @@ export function useGameManager() {
         return;
       }
 
+      console.log("GameManager] Sending navigate_to_game broadcast");
+      console.log("[GameManager] gameChannel:", !!gameChannel.value);
+
       gameChannel.value.send({
         type: "broadcast",
         event: "cards_dealt",
+        payload: { roomId },
       });
     } finally {
       isStartingGame.value = false;
@@ -123,6 +147,7 @@ export function useGameManager() {
         gameChannel.value.send({
           type: "broadcast",
           event: "cards_dealt",
+          payload: { roomId },
         });
       }
     } catch (e) {
@@ -136,6 +161,8 @@ export function useGameManager() {
     // Variables
     isStartingGame,
     isStartingNextRound,
+    errorMessage,
+    gameChannel,
 
     // Functions
     initializeGame,

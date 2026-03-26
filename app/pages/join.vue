@@ -34,7 +34,7 @@
           <div v-else
             class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black">
             <button @click="startEditGuestName"
-              class="w-full flex flex-row items-center justify-between gap-1 cursor-pointer hover:text-blue-500">
+              class="w-full flex flex-row items-center justify-between gap-1 cursor-pointer hover:text-grey-500">
               <span class="py-4 pl-4 text-3xl font-normal">
                 {{ user?.user_metadata?.full_name || "Guest" }}
               </span>
@@ -60,7 +60,7 @@
         <div class="flex flex-col gap-2 w-full">
           <div
             class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black">
-            <div class="w-full flex flex-row items-center justify-between cursor-pointer hover:text-blue-500">
+            <div class="w-full flex flex-row items-center justify-between cursor-pointer">
               <input v-model="roomCodeInput" placeholder="X4DD" type="text"
                 class="w-full py-4 px-4 text-3xl font-normal" @keyup.enter="joinRoom" />
               <div @click="joinRoom" class="flex items-center px-8 h-full bg-neutral-200 h-full">

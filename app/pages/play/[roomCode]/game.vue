@@ -10,7 +10,7 @@ const route = useRoute();
 const roomId = ref<string>("");
 const playerId = ref<string>("");
 
-const roomCode = String(route.params.roomId ?? "").toUpperCase();
+const roomCode = ref<string>("");
 
 const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
@@ -264,7 +264,7 @@ async function handleRoundEnd(currentMetaData: object) {
 }
 
 async function startGame() {
-  await initializeGame(roomId.value, dev2gaps.value);
+  await initializeGame(roomId.value, roomCode.value, dev2gaps.value);
 }
 
 async function startNexRound() {
@@ -389,7 +389,10 @@ async function submitWinner(winnerSubmission: any) {
 // onMounted, onUnmounted
 // ============================================================
 onMounted(async () => {
-  roomId.value = await getRoomIdByCode(roomCode);
+  // Extract room code from route
+  roomCode.value = String(route.params.roomCode ?? "").toUpperCase();
+
+  roomId.value = await getRoomIdByCode(roomCode.value);
 
   if (!roomId.value) {
     console.error("Missing room ID");
@@ -404,7 +407,7 @@ onMounted(async () => {
   if (user.value) {
     playerId.value = user.value.sub;
   } else {
-    navigateTo("/login?redirect=joinGame&roomCode=" + roomCode);
+    navigateTo("/login?redirect=joinGame&roomCode=" + roomCode.value);
     return;
   }
 
@@ -419,13 +422,6 @@ onMounted(async () => {
     .single();
   gameMasterId.value = room?.owner ?? null;
 
-  await insertPlayerInRoomTable(roomId.value, playerId.value);
-
-  // JOIN REALTIME CHANNEL
-  await joinRoom(roomCode, playerId.value);
-
-  // Realtime socket listeners
-  await setupBroadcastListeners(roomId.value, playerId.value);
   await syncPlayerScoresForRoom(roomId.value);
 
   // Realtime table listeners
@@ -446,17 +442,15 @@ onMounted(async () => {
     },
   );
 
-
-  // Initialize realtime tracking
-  gameChannel.value?.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      await trackMyStatus(myPresenceStatus.value);
-    }
-  });
-
   // SYNC GAME STATE IF ALREADY STARTED
   const metadata = roomMetadata?.metadata;
   if (metadata?.round_status && metadata.round_status !== "lobby") {
+
+    // Realtime Listeners need to be setup
+    await insertPlayerInRoomTable(roomId.value, playerId.value);
+    await joinRoom(roomCode.value, playerId.value);
+    await setupBroadcastListeners(roomId.value, playerId.value);
+
     const { data: handCardsData } = await supabase
       .from("hand_cards")
       .select("*")
@@ -478,6 +472,12 @@ onMounted(async () => {
     gameStarted.value = true;
     handleGameStateChanges(metadata);
   }
+    // Initialize realtime tracking
+  gameChannel.value?.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      await trackMyStatus(myPresenceStatus.value);
+    }
+  });
 });
 
 onUnmounted(async () => {
@@ -536,8 +536,8 @@ const dev2gaps = ref(false);
           <!-- <p class="text-sm text-gray-500">
             {{ players.length }} players online
           </p> -->
-          <!-- <p class="text-sm text-blue-500">({{ roundStatus }})</p> -->
-          <p v-if="round" class="text-sm text-blue-500">{{ round }}. Round</p>
+          <!-- <p class="text-sm text-red-500">({{ roundStatus }})</p> -->
+          <p v-if="round" class="text-sm text-red-500">{{ round }}. Round</p>
         </div>
         <div class="flex gap-2">
           <button @click="deletePlayerFromRoomTable(roomId, playerId)"
@@ -560,14 +560,14 @@ const dev2gaps = ref(false);
           <div class="w-full flex flex-row items-center justify-start gap-1 transition">
             <span class="text-md font-bold transition">{{
               player.user_name
-            }}</span>
+              }}</span>
             <span v-if="player.user_id === playerId" class="text-md font-normal transition">(you)</span>
           </div>
           <div class="w-full flex flex-row items-center justify-between gap-2 transition">
             <span class="">{{ getPlayerScore(player.user_id) }}</span>
             <span class="text-[0.6rem] uppercase transition">{{
               player.status
-            }}</span>
+              }}</span>
           </div>
         </div>
       </div>
@@ -585,7 +585,7 @@ const dev2gaps = ref(false);
     <!-- Game Area -->
     <section v-if="gameStarted" class="w-full h-full flex flex-col gap-4 max-w-2xl">
       <!-- Status Message -->
-      <p class="bg-white p-2 text-blue-500 text-2xl text-center">
+      <p class="bg-white p-2 text-red-500 text-2xl text-center">
         <span v-if="roundStatus === 'round_start'" class="font-medium">
           {{
             isCzar
@@ -603,7 +603,7 @@ const dev2gaps = ref(false);
       <!-- Black Card -->
       <div class="flex flex-col items-center justify-center gap-4">
         <div v-if="roundStatus === 'round_end'" class="space-y-3">
-          <p class="text-2xl font-medium text-blue-700">
+          <p class="text-2xl font-medium text-red-700">
             {{
               winnerUsername
                 ? `${winnerUsername} wins the round!`
@@ -639,7 +639,7 @@ const dev2gaps = ref(false);
             <div v-for="(cardId, index) in winnerCards" :key="index"
               class="relative w-full min-h-48 max-w-36 rounded-lg shadow-lg bg-white p-3 font-medium text-sm transition-all">
               {{ getCardTextById(cardId) }}
-              <div class="absolute bottom-2 right-3 text-xs text-blue-500">
+              <div class="absolute bottom-2 right-3 text-xs text-red-500">
                 {{ winnerUsername }}
               </div>
               <div class="absolute bottom-2 left-3 text-xs text-gray-400">
@@ -660,10 +660,10 @@ const dev2gaps = ref(false);
               class="h-64 w-52 shrink-0 snap-start rounded-lg border border-gray-200 bg-white p-4 text-sm font-bold text-gray-800 shadow-sm transition-all"
               :class="[
                 isCzar
-                  ? 'cursor-pointer md:hover:-translate-y-1 md:hover:border-blue-300 md:hover:shadow-lg'
+                  ? 'cursor-pointer md:hover:-translate-y-1 md:hover:border-red-300 md:hover:shadow-lg'
                   : 'cursor-default',
                 selectedPlayerSubmission?.user_id === playerSubmission.user_id
-                  ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
+                  ? 'border-red-400 bg-red-50 ring-2 ring-red-200'
                   : 'bg-white',
               ]">
               {{ getCardTextById(cardId) }}
@@ -686,7 +686,7 @@ const dev2gaps = ref(false);
     <section v-if="gameStarted && isCzar && roundStatus === 'round_submitted'"
       class="fixed bottom-[max(env(safe-area-inset-top),1.5rem)] flex flex-col items-center gap-2 transition-all">
       <button @click="submitWinner(selectedPlayerSubmission)" :disabled="isChoosingWinner"
-        class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
+        class="px-8 py-4 bg-red-500 rounded-full text-white text-sm font-semibold rounded hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{ isChoosingWinner ? "Choosing..." : "Choose" }}
       </button>
     </section>
@@ -701,7 +701,7 @@ const dev2gaps = ref(false);
       <button @click="submitCards()" :disabled="isSubmittingWhiteCards ||
         myChosenWhiteCards.length !== numberOfCardsToPlay
         "
-        class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
+        class="px-8 py-4 bg-red-500 rounded-full text-white text-sm font-semibold rounded hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{
           isSubmittingWhiteCards
             ? "Submitting..."
@@ -716,7 +716,7 @@ const dev2gaps = ref(false);
     <section v-if="roundStatus === 'round_end' && isCzar"
       class="fixed bottom-[max(env(safe-area-inset-top),1.5rem)] flex items-center transition-all">
       <button @click="startNexRound()" :disabled="isStartingNextRound"
-        class="px-8 py-4 bg-blue-500 rounded-full text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
+        class="px-8 py-4 bg-red-500 rounded-full text-white text-sm font-semibold rounded hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70">
         {{ isStartingNextRound ? "Loading..." : "Next Round" }}
       </button>
     </section>

@@ -60,7 +60,7 @@
             <div v-else
               class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black">
               <button @click="startEditGuestName"
-                class="w-full flex flex-row items-center justify-between gap-1 cursor-pointer hover:text-blue-500">
+                class="w-full flex flex-row items-center justify-between gap-1 cursor-pointer hover:text-grey-500">
                 <span class="py-4 pl-4 text-lg font-normal">
                   {{ user?.user_metadata?.full_name || "Guest" }}
                 </span>
@@ -214,6 +214,8 @@ const createGame = async () => {
     lobbyError.value = "Could not create room in database. Please try again.";
     console.error("Room insert failed:", roomInsertError);
     return;
+  } else {
+    console.log("Room created successfully:", createdRoom);
   }
 
   console.log("Created room:", createdRoom);
