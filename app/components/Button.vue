@@ -4,7 +4,15 @@
       <span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
       <slot name="loading">Loading...</slot>
     </span>
-    <slot v-else />
+    <span v-else class="inline-flex items-center gap-2">
+      <span v-if="$slots.iconLeft" class="inline-flex items-center" aria-hidden="true">
+        <slot name="iconLeft" />
+      </span>
+      <slot />
+      <span v-if="$slots.iconRight" class="inline-flex items-center" aria-hidden="true">
+        <slot name="iconRight" />
+      </span>
+    </span>
   </button>
 </template>
 
@@ -41,7 +49,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   primary:
     "bg-neutral-200 text-black border border-transparent hover:bg-neutral-300 focus-visible:ring-neutral-300",
   secondary:
-    "bg-white text-blue-700 border border-blue-300 hover:bg-blue-50 focus-visible:ring-blue-200",
+    "bg-neutral-50 text-black border border-[3px] border-black hover:bg-neutral-300 focus-visible:ring-red-500",
   danger:
     "bg-red-600 text-white border border-red-600 hover:bg-red-700 focus-visible:ring-red-300",
   ghost:
