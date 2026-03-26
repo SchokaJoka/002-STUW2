@@ -9,7 +9,8 @@
                             stroke="black" stroke-width="2" stroke-linejoin="round" />
                     </svg>
                 </div>
-                <input v-model="collectionName" type="text" placeholder="new Card-Set" class="w-full text-black text-4xl font-bold"></input>
+                <input v-model="collectionName" type="text" placeholder="new Card-Set"
+                    class="w-full text-black text-4xl font-bold"></input>
             </div>
             <div class="w-full flex flex-row justify-center bg-white z-10">
                 <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
@@ -41,11 +42,14 @@
                                 <div class="flex flex-col gap-4">
                                     <div v-for="whiteCard, index in whiteCards" :key="index"
                                         class="relative w-full flex flex-row items-center justify-between gap-4 bg-neutral-50 p-5 rounded-lg border border-[3px] border-black">
-                                        <p v-if="editIndex !== index" class="w-full text-black text-xl font-semibold">{{ whiteCard.text }}</p>
-                                        <input v-else v-model="whiteCards[index].text" @keyup.enter="saveEdit()" @blur="saveEdit()"
-                                            type="text" class="w-full text-black text-xl font-semibold bg-transparent border-none focus:ring-0"></input>
+                                        <p v-if="editType !== 'white' || editIndex !== index"
+                                            class="w-full text-black text-xl font-semibold">{{ whiteCard.text }}</p>
+                                        <input v-else ref="editInputWhite" v-model="whiteCards[index].text"
+                                            @keyup.enter="saveEdit()" @blur="saveEdit()" type="text"
+                                            class="w-full text-black text-xl font-semibold bg-transparent border-none focus:ring-0"></input>
                                         <div class="flex flex-row gap-2 items-center">
-                                            <div class="hover:cursor-pointer" @click="editCard(whiteCard, index, 'white')">
+                                            <div class="hover:cursor-pointer"
+                                                @click="editCard(whiteCard, index, 'white')">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                                                     viewBox="0 0 24 24" fill="none">
                                                     <g clip-path="url(#clip0_83_1922)">
@@ -75,9 +79,23 @@
                                 <div class="flex flex-col gap-4">
                                     <div v-for="blackCard, index in blackCards" :key="index"
                                         class="relative w-full flex flex-row items-center justify-between gap-4 bg-black p-5 rounded-lg border border-[3px] border-white">
-                                        <p class="text-white text-xl font-semibold">{{ blackCard.text }}</p>
+                                        <p v-if="editType !== 'black' || editIndex !== index"
+                                            class="w-full text-white text-xl font-semibold">{{ blackCard.text }}</p>
+                                        <div v-else
+                                            class="w-full flex flex-col gap-2">
+                                            <div v-for="part, index in currentBlackCardText" :key="index" class="w-full flex flex-row gap-4">
+                                                <span v-if="part.isGap" class="text-white">{{ "GAP" }}</span>
+                                                <input v-else type="text" v-model="part.text" class="flex-1 bg-white text-black px-2 py-1 rounded" />
+                                            </div>
+                                            <div class="w-full flex flex-row gap-2">
+                                                <Button v-if="!currentBlackCardText[currentBlackCardText.length - 1].isGap" @click="insertGap()" variant="primary" size="sm" block class="rounded-xl">Insert Gap</Button>
+                                                <Button v-if="currentBlackCardText[currentBlackCardText.length - 1].isGap" @click="insertText()" variant="primary" size="sm" block class="rounded-xl">Insert Text</Button>
+                                                <Button v-if="currentBlackCardText.length > 1" @click="deleteLast()" variant="primary" size="sm" block class="rounded-xl">Delete</Button>
+                                            </div>
+                                        </div>
                                         <div class="flex flex-row gap-2 items-center">
-                                            <div class="hover:cursor-pointer" @click="">
+                                            <div class="hover:cursor-pointer"
+                                                @click="editCard(blackCard, index, 'black')">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                                                     viewBox="0 0 24 24" fill="none">
                                                     <g clip-path="url(#clip0_83_1922)">
@@ -110,7 +128,7 @@
         </section>
 
         <section class="fixed bottom-[max(env(safe-area-inset-bottom),1.5rem)] z-20">
-            <div class="w-full max-w-2xl mx-auto">
+            <div class="w-full flex flex-row gap-4 max-w-2xl mx-auto">
                 <Button variant="secondary" size="md" @click="activeTab === 'page1' ? newWhiteCard() : newBlackCard()">
                     <template #iconLeft>
                         <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none">
@@ -118,6 +136,9 @@
                             <path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                         </svg>
                     </template>
+                </Button>
+                <Button v-if="hasUnsavedChanges" variant="tertiary" size="md" @click="saveCollection">
+                    Save
                 </Button>
             </div>
         </section>
@@ -141,18 +162,75 @@ const placeholderRows = [1, 2, 3];
 
 const editIndex = ref<number | null>(null);
 const editType = ref<"white" | "black" | null>(null);
+const editInputWhite = ref<HTMLInputElement | HTMLInputElement[] | null>(null);
+const editInputBlack = ref<HTMLInputElement | HTMLInputElement[] | null>(null);
 
+const currentBlackCardText = ref<[]>([]);
+
+const GAP_TOKEN: string = "[[W1tnYXBdXQ==]]";
 
 type Card = Tables<"cards">;
 
 const activeTab = ref("page1");
 const headerEl = ref<HTMLElement | null>(null);
 
-const hasUnsavedChanges = computed(() => 
-    whiteCards.value.length > 0 || 
-    blackCards.value.length > 0 || 
+const hasUnsavedChanges = computed(() =>
+    whiteCards.value.length > 0 ||
+    blackCards.value.length > 0 ||
     collectionName.value.trim() !== ""
 );
+
+// =====================================================
+const blackCardTextParts = (blackCard: Card) => {
+    const text = blackCard.text || "";
+
+    return getTextParts(text);
+};
+
+const getTextParts = (text: string): TextPart[] => {
+    if (!text.includes(GAP_TOKEN)) {
+        return [{ text, isGap: false }];
+    }
+
+    const textParts = text.split(GAP_TOKEN);
+    const parts: TextPart[] = [];
+    let gapIndex = 0;
+
+    textParts.forEach((part: string, index: number) => {
+        parts.push({ text: part, isGap: false });
+
+        if (index < textParts.length - 1) {
+            parts.push({ text: "", isGap: true, gapIndex });
+            gapIndex += 1;
+        }
+    });
+
+    console.log("Parsed text parts:", parts);
+
+    return parts;
+};
+
+
+function insertGap() {
+    currentBlackCardText.value.push({ text: "", isGap: true, gapIndex: currentBlackCardText.value.filter((part: TextPart) => part.isGap).length });
+}
+
+function insertText() {
+    currentBlackCardText.value.push({ text: "", isGap: false });
+}
+
+function deleteLast() {
+    currentBlackCardText.value.pop();
+}
+
+// =====================================================
+
+const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+    if (hasUnsavedChanges.value) {
+        e.preventDefault();
+        e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+    }
+};
 
 const updateHeaderHeight = () => {
     const height = headerEl.value?.offsetHeight ?? 0;
@@ -170,11 +248,83 @@ function editCard(card: Card, index: number, type: "white" | "black") {
     editIndex.value = index;
     editType.value = type;
 
+    currentBlackCardText.value = blackCardTextParts(card);
+
+    nextTick(() => {
+        if (type === "white") {
+            const input = Array.isArray(editInputWhite.value)
+                ? editInputWhite.value[0]
+                : editInputWhite.value;
+            input?.focus();
+        } else {
+            const input = Array.isArray(editInputBlack.value)
+                ? editInputBlack.value[0]
+                : editInputBlack.value;
+            input?.focus();
+        }
+    });
 }
 
 function saveEdit() {
     editIndex.value = null;
     editType.value = null;
+    currentBlackCardText.value = [];
+}
+
+async function saveCollection() {
+    if (collectionName.value.trim() === "") {
+        alert("Collection name cannot be empty.");
+        return;
+    }
+
+    const { data: collection, error: collectionError } = await supabase
+        .from("collections")
+        .insert({ name: collectionName.value, user_id: user.value?.sub })
+        .select()
+        .single();
+
+    if (collectionError) {
+        console.error("Error creating collection:", collectionError);
+        alert("Failed to create collection. Please try again.");
+        return;
+    }
+
+    const collectionId = collection.id;
+
+    const whiteCardsToInsert = whiteCards.value.map((card) => ({
+        text: card.text,
+        type: "white",
+        collection_id: collectionId,
+    }));
+
+    const blackCardsToInsert = blackCards.value.map((card) => ({
+        text: card.text,
+        type: "black",
+        collection_id: collectionId,
+    }));
+
+    const { error: whiteCardsError } = await supabase
+        .from("cards")
+        .insert(whiteCardsToInsert);
+
+    if (whiteCardsError) {
+        console.error("Error inserting white cards:", whiteCardsError);
+        alert("Failed to save white cards. Please try again.");
+        return;
+    }
+
+    const { error: blackCardsError } = await supabase
+        .from("cards")
+        .insert(blackCardsToInsert);
+
+    if (blackCardsError) {
+        console.error("Error inserting black cards:", blackCardsError);
+        alert("Failed to save black cards. Please try again.");
+        return;
+    }
+
+    alert("Collection saved successfully!");
+    navigateTo('/sets');
 }
 
 function deleteCard(index: number, type: "white" | "black") {
@@ -190,6 +340,7 @@ function deleteCard(index: number, type: "white" | "black") {
 function newWhiteCard() {
     whiteCards.value.push({
         text: "New white card",
+        is_black: false,
         created_at: new Date().toISOString(),
     } as Card);
 }
@@ -197,19 +348,16 @@ function newWhiteCard() {
 function newBlackCard() {
     blackCards.value.push({
         text: "New Black card",
+        is_black: true,
         created_at: new Date().toISOString(),
-    } as Card);}
+    } as Card);
+}
 
 
 onMounted(async () => {
     updateHeaderHeight();
     window.addEventListener("resize", updateHeaderHeight);
-    window.addEventListener("beforeunload", (e) => {
-        if (hasUnsavedChanges.value) {
-            e.preventDefault();
-            e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
-        }
-    });
+    window.addEventListener("beforeunload", beforeUnloadHandler);
 
     console.log("Current user:", user.value);
     const userId = user.value?.id ?? user.value?.sub;
@@ -217,6 +365,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     window.removeEventListener("resize", updateHeaderHeight);
-    window.removeEventListener("beforeunload", () => {});
+    window.removeEventListener("beforeunload", beforeUnloadHandler);
 });
 </script>

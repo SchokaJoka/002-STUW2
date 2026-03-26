@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "tertiary" | "danger" | "ghost";
 type ButtonSize = "sm" | "md" | "lg";
 
 const props = withDefaults(
@@ -50,6 +50,8 @@ const variantClasses: Record<ButtonVariant, string> = {
     "bg-neutral-200 text-black border border-transparent hover:bg-neutral-300 focus-visible:ring-neutral-300",
   secondary:
     "bg-neutral-50 text-black border border-[3px] border-black hover:bg-neutral-300 focus-visible:ring-red-500",
+  tertiary:
+    "bg-green-300 text-black border border-[3px] border-green-500 hover:bg-green-400 focus-visible:ring-red-500",
   danger:
     "bg-red-600 text-white border border-red-600 hover:bg-red-700 focus-visible:ring-red-300",
   ghost:
