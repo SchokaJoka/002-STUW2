@@ -1,6 +1,25 @@
 <script setup lang="ts">
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+type WinnerInfo = {
+  user_id: string;
+  metadata?: { submitted_cards?: string[] } | null;
+};
+
+type BlackCard = {
+  text: string;
+  number_of_gaps: number | null;
+};
+
+type GameMetadata = {
+  round_status: "lobby" | "round_start" | "round_submitted" | "round_end";
+  round?: number | null;
+  czar_id?: string | null;
+  set_id?: string | null;
+  black_card?: BlackCard | null;
+  current_winner?: WinnerInfo | null;
+};
+
 // VARIABLES
 // ============================================================
 const user = useSupabaseUser();
@@ -17,10 +36,10 @@ const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
 const gameMasterId = ref<string | null>(null);
 const isGameMaster = useState<boolean>("isGameMaster", () => false);
 
-const gameState = ref<{}>({});
-const roundStatus = ref<string>("lobby");
+const gameState = ref<GameMetadata | null>(null);
+const roundStatus = ref<GameMetadata["round_status"]>("lobby");
 
-const blackCard = ref<{}>({});
+const blackCard = ref<BlackCard | null>(null);
 const myChosenWhiteCards = ref<any[]>([]);
 const playerSubmissions = ref<any[]>([]);
 const selectedPlayerSubmission = ref<any | null>(null);
@@ -32,8 +51,8 @@ const whiteCardPickError = ref<string>("");
 const GAP_TOKEN: string = "[[W1tnYXBdXQ==]]";
 
 const winnerUsername = ref<string>("");
-const winnerUserId = ref<string>("");
-const winnerCards = ref<[]>([]);
+const winnerUserId = ref<string | null>(null);
+const winnerCards = ref<string[]>([]);
 
 // ============================================================
 
@@ -51,8 +70,7 @@ const {
   // Functions
   getRoomIdByCode,
   getRoomMetadata,
-  insertPlayerInRoomTable,
-  joinRoom,
+  enterRoom,
   deletePlayerFromRoomTable,
   markMemberInactive,
   trackMyStatus,
@@ -79,10 +97,8 @@ const { getPlayerScore, updatePlayerScoreFromMember, syncPlayerScoresForRoom } =
 // ============================================================
 
 const czarId = computed(() => {
-  if (gameStarted.value) {
-    return gameState.value.czar_id ?? null;
-  }
-  return null;
+  if (!gameStarted.value) return null;
+  return gameState.value?.czar_id ?? null;
 });
 
 const isCzar = computed(() => {
@@ -101,11 +117,16 @@ const selectedHandCardIds = computed(() =>
 );
 
 const availableCollectionCards = computed(() => {
-  if (Array.isArray(collectionCards.value?.data))
-    return collectionCards.value.data;
   if (Array.isArray(collectionCards.value)) return collectionCards.value;
   return [];
 });
+
+const normalizedHandCards = computed(() =>
+  (playerHandCards.value ?? []).map((h: any) => ({
+    ...h,
+    card_id: h.card_id ?? "",
+  })),
+);
 
 type TextPart = {
   text: string;
@@ -140,8 +161,7 @@ const getTextParts = (text: string): TextPart[] => {
 };
 
 const blackCardTextParts = computed(() => {
-  const text = blackCard.value.text || "";
-
+  const text = blackCard.value?.text || "";
   return getTextParts(text);
 });
 
@@ -173,37 +193,49 @@ watch(myPresenceStatus, async () => {
 });
 
 const round = computed(() => {
-  if (!gameState.value.round) return null;
+  if (!gameState.value?.round) return null;
   return gameState.value.round;
 });
 // ============================================================
 
 // Game State Handling
 // ============================================================
-async function handleGameStateChanges(currentMetaData: object) {
-  gameState.value = currentMetaData;
-  roundStatus.value = currentMetaData.round_status;
-
-  switch (currentMetaData.round_status) {
-    case "round_start":
-      handleRoundStart(currentMetaData);
-      break;
-    case "round_submitted":
-      handleRoundSubmitted(currentMetaData);
-      break;
-    case "round_end":
-      handleRoundEnd(currentMetaData);
-      break;
-    default:
-      console.warn("Unknown round status:", currentMetaData.round_status);
-  }
-}
-
-async function handleRoundStart(currentMetaData: object) {
+async function handleRoundStart(currentMetaData: GameMetadata) {
   gameState.value = currentMetaData;
   roundStatus.value = currentMetaData.round_status;
   winnerUserId.value = null;
 
+  // Load hand cards
+  const { data: handCardsData, error: handError } = await supabase
+    .from("hand_cards")
+    .select("*")
+    .eq("room_id", roomId.value)
+    .eq("user_id", playerId.value);
+
+  if (handError) {
+    console.error("Error fetching hand cards:", handError);
+  } else {
+    playerHandCards.value = (handCardsData ?? []).map((h) => ({
+      ...h,
+      card_id: h.card_id ?? "",
+    }));
+  }
+
+  // Load collection cards if not already loaded
+  if (collectionCards.value.length === 0 && currentMetaData.set_id) {
+    const { data: cardsData, error: cardsError } = await supabase
+      .from("cards")
+      .select("*")
+      .eq("collection_id", currentMetaData.set_id);
+
+    if (cardsError) {
+      console.error("Error fetching collection cards:", cardsError);
+    } else {
+      collectionCards.value = cardsData ?? [];
+    }
+  }
+
+  // Load player submission status
   const { data, error } = await supabase
     .from("room_members")
     .select("status")
@@ -215,14 +247,17 @@ async function handleRoundStart(currentMetaData: object) {
     return;
   }
 
-  isWhiteCardsSubmitted.value = data[0].status === "submitted";
-  blackCard.value = currentMetaData.black_card;
+  const status = data?.[0]?.status;
+  isWhiteCardsSubmitted.value = status === "submitted";
+  blackCard.value = currentMetaData.black_card ?? null;
 }
 
-async function handleRoundSubmitted(currentMetaData: object) {
+async function handleRoundSubmitted(currentMetaData: GameMetadata) {
   gameState.value = currentMetaData;
   roundStatus.value = currentMetaData.round_status;
   winnerUserId.value = null;
+
+  if (!czarId.value) return;
 
   const { data, error } = await supabase
     .from("room_members")
@@ -247,20 +282,45 @@ async function handleRoundSubmitted(currentMetaData: object) {
   }
 
   isWhiteCardsSubmitted.value = false;
-  blackCard.value = currentMetaData.black_card;
+  blackCard.value = currentMetaData.black_card ?? null;
 
   playerSubmissions.value = data ?? [];
   console.log("submittedWhiteCards: ", playerSubmissions.value);
 }
 
-async function handleRoundEnd(currentMetaData: object) {
-  const winnerId = currentMetaData.current_winner.user_id;
+async function handleRoundEnd(currentMetaData: GameMetadata) {
+  const winnerId = currentMetaData.current_winner?.user_id;
+  if (!winnerId) return;
   winnerUserId.value = winnerId;
-  blackCard.value = currentMetaData.black_card;
+  blackCard.value = currentMetaData.black_card ?? null;
   winnerUsername.value =
-    players.value.find((p) => p.user_id === winnerId)?.user_name || null;
+    players.value.find((p) => p.user_id === winnerId)?.user_name || "";
   winnerCards.value =
-    currentMetaData.current_winner.metadata?.submitted_cards || null;
+    currentMetaData.current_winner?.metadata?.submitted_cards ?? [];
+}
+
+async function handleGameStateChanges(currentMetaData: GameMetadata) {
+  gameState.value = currentMetaData;
+  roundStatus.value = currentMetaData.round_status;
+
+  // Set gameStarted based on actual round status
+  if (currentMetaData.round_status !== "lobby") {
+    gameStarted.value = true;
+  }
+
+  switch (currentMetaData.round_status) {
+    case "round_start":
+      await handleRoundStart(currentMetaData);
+      break;
+    case "round_submitted":
+      await handleRoundSubmitted(currentMetaData);
+      break;
+    case "round_end":
+      await handleRoundEnd(currentMetaData);
+      break;
+    default:
+      console.warn("Unknown round status:", currentMetaData.round_status);
+  }
 }
 
 async function startGame() {
@@ -415,6 +475,7 @@ onMounted(async () => {
     console.error("Missing player ID");
     return;
   }
+
   const { data: room } = await supabase
     .from("rooms")
     .select("owner")
@@ -424,7 +485,10 @@ onMounted(async () => {
 
   await syncPlayerScoresForRoom(roomId.value);
 
-  // Realtime table listeners
+  // STEP 1: Setup listeners for ALL players (centralized)
+  await enterRoom(roomId.value, roomCode.value, playerId.value, myPresenceStatus.value);
+
+  // Realtime table listeners (after channel is created)
   gameChannel.value?.on(
     "postgres_changes",
     {
@@ -438,48 +502,42 @@ onMounted(async () => {
       if (payload.new.owner) {
         gameMasterId.value = payload.new.owner;
       }
-      handleGameStateChanges(payload.new.metadata);
+
+      const metadata = payload.new.metadata as GameMetadata | null;
+      if (metadata) handleGameStateChanges(metadata);
     },
   );
 
-  // SYNC GAME STATE IF ALREADY STARTED
-  const metadata = roomMetadata?.metadata;
-  if (metadata?.round_status && metadata.round_status !== "lobby") {
-
-    // Realtime Listeners need to be setup
-    await insertPlayerInRoomTable(roomId.value, playerId.value);
-    await joinRoom(roomCode.value, playerId.value);
-    await setupBroadcastListeners(roomId.value, playerId.value);
-
+  // STEP 2: Conditionally load game state if game already started
+  const metadata = (roomMetadata?.metadata as GameMetadata | null) ?? null;
+  if (metadata && metadata.round_status !== "lobby") {
     const { data: handCardsData } = await supabase
       .from("hand_cards")
       .select("*")
       .eq("room_id", roomId.value)
       .eq("user_id", playerId.value);
 
-    playerHandCards.value = handCardsData ?? [];
+    playerHandCards.value = (handCardsData ?? []).map((h) => ({
+      ...h,
+      card_id: h.card_id ?? "",
+    }));
 
-    const { data: cardsData } = await supabase
-      .from("cards")
-      .select("*")
-      .eq("collection_id", metadata.set_id);
+    if (metadata.set_id) {
+      const { data: cardsData } = await supabase
+        .from("cards")
+        .select("*")
+        .eq("collection_id", metadata.set_id);
 
-    collectionCards.value = cardsData ?? [];
+      collectionCards.value = cardsData ?? [];
+    }
 
     await syncPlayerScoresForRoom(roomId.value);
 
-    blackCard.value = metadata.black_card;
+    blackCard.value = metadata.black_card ?? null;
     gameStarted.value = true;
-    handleGameStateChanges(metadata);
+    await handleGameStateChanges(metadata);
   }
-    // Initialize realtime tracking
-  gameChannel.value?.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      await trackMyStatus(myPresenceStatus.value);
-    }
-  });
 });
-
 onUnmounted(async () => {
   if (!isLeaving.value) await markMemberInactive(roomId.value, playerId.value);
   if (gameChannel.value) await supabase.removeChannel(gameChannel.value);
@@ -560,14 +618,14 @@ const dev2gaps = ref(false);
           <div class="w-full flex flex-row items-center justify-start gap-1 transition">
             <span class="text-md font-bold transition">{{
               player.user_name
-              }}</span>
+            }}</span>
             <span v-if="player.user_id === playerId" class="text-md font-normal transition">(you)</span>
           </div>
           <div class="w-full flex flex-row items-center justify-between gap-2 transition">
             <span class="">{{ getPlayerScore(player.user_id) }}</span>
             <span class="text-[0.6rem] uppercase transition">{{
               player.status
-              }}</span>
+            }}</span>
           </div>
         </div>
       </div>

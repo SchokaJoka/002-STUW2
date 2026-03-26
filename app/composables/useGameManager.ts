@@ -76,13 +76,21 @@ export function useGameManager() {
       const sets = await getCardCollections();
       if (!sets || sets.length === 0) {
         console.error("No card sets available.");
+        errorMessage.value = "No card sets available to start the game.";
+        return;
+      }
+
+      const chosenSet = sets[0];
+      if (!chosenSet) {
+        console.error("Failed to pick a card set.");
+        errorMessage.value = "Failed to pick a card set.";
         return;
       }
 
       gameChannel.value.send({
         type: "broadcast",
         event: "game_initialize",
-        payload: { set_id: sets[0].id }, // For now we just hardcode a set, but you could add a UI to select one
+        payload: { set_id: chosenSet.id }, // For now we just hardcode a set, but you could add a UI to select one
       });
 
       gameChannel.value.send({
@@ -90,14 +98,14 @@ export function useGameManager() {
         event: "game_start",
       });
 
-      console.log("[GameManager] Initializing game with set:", sets[0].name);
+      console.log("[GameManager] Initializing game with set:", chosenSet.name);
 
       const { data: edgeInitializeData } = await supabase.functions.invoke(
         "initialize_game",
         {
           method: "POST",
           body: {
-            set_id: sets[0].id,
+            set_id: chosenSet.id,
             room_id: roomId,
             cardsPerPlayer: 8,
             dev2gaps: dev2gaps,

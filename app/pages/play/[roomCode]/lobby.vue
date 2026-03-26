@@ -27,8 +27,7 @@ const {
 
   // Functions
   getRoomIdByCode,
-  insertPlayerInRoomTable,
-  joinRoom,
+  enterRoom,
   deletePlayerFromRoomTable,
   markMemberInactive,
   trackMyStatus,
@@ -104,13 +103,7 @@ onMounted(async () => {
     gameMasterId.value = room?.owner ?? null;
     console.log("Game master ID from DB:", gameMasterId.value);
 
-    await insertPlayerInRoomTable(roomId.value, playerId.value);
-
-    // JOIN REALTIME CHANNEL
-    await joinRoom(roomCode.value, playerId.value);
-
-    // Setup broadcast listeners to sync players list
-    await setupBroadcastListeners(roomId.value, playerId.value);
+    await enterRoom(roomId.value, roomCode.value, playerId.value, "waiting");
 
     // Listen for navigate_to_game broadcast to transition to game.vue
     gameChannel.value?.on("broadcast", { event: "navigate_to_game" }, (payload: any) => {
@@ -119,12 +112,6 @@ onMounted(async () => {
       navigateTo(`/play/${payload.payload.roomCode}/game`);
     });
 
-    // Subscribe to presence updates
-    gameChannel.value?.subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        await trackMyStatus("waiting");
-      }
-    });
   } catch (err) {
     console.error("[onMounted] Error:", err);
   }

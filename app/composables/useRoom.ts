@@ -48,35 +48,6 @@ export function useRoom() {
     }
     return data;
   }
-  async function insertPlayerInRoomTable(roomId: string, playerId: string) {
-    const { error } = await supabase.from("room_members").upsert(
-      {
-        room_id: roomId,
-        user_id: playerId,
-        role: "player",
-        is_active: true,
-        left_at: null,
-        joined_at: new Date().toISOString(),
-      },
-      { onConflict: "room_id,user_id" },
-    );
-
-    if (error) {
-      console.error("Error joining room:", error);
-      return;
-    }
-  }
-
-  async function joinRoom(roomCode: string, playerId: string) {
-    gameChannel.value = supabase.channel(`${roomCode}`, {
-      config: { broadcast: { self: true }, presence: { key: playerId } },
-    });
-
-    if (!gameChannel.value) {
-      console.error("Failed to join game channel.");
-      return;
-    }
-  }
 
   async function deletePlayerFromRoomTable(roomId: string, playerId: string) {
     if (!roomId || !playerId) return;
@@ -181,6 +152,57 @@ export function useRoom() {
     });
   }
 
+  async function resetPlayerList() {
+    players.value = [];
+  }
+
+  async function enterRoom(
+    roomId: string,
+    roomCode: string,
+    playerId: string,
+    initialStatus: string,
+  ) {
+    await insertPlayerInRoomTable(roomId, playerId);
+    await joinRoom(roomCode, playerId);
+    await setupBroadcastListeners(roomId, playerId);
+
+    gameChannel.value?.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await trackMyStatus(initialStatus);
+      }
+    });
+  }
+
+  async function insertPlayerInRoomTable(roomId: string, playerId: string) {
+    const { error } = await supabase.from("room_members").upsert(
+      {
+        room_id: roomId,
+        user_id: playerId,
+        role: "player",
+        is_active: true,
+        left_at: null,
+        joined_at: new Date().toISOString(),
+      },
+      { onConflict: "room_id,user_id" },
+    );
+
+    if (error) {
+      console.error("Error joining room:", error);
+      return;
+    }
+  }
+
+  async function joinRoom(roomCode: string, playerId: string) {
+    gameChannel.value = supabase.channel(`${roomCode}`, {
+      config: { broadcast: { self: true }, presence: { key: playerId } },
+    });
+
+    if (!gameChannel.value) {
+      console.error("Failed to join game channel.");
+      return;
+    }
+  }
+
   async function setupBroadcastListeners(roomId: string, playerId: string) {
     // Validation
     if (!gameChannel.value && !user.value) {
@@ -189,22 +211,21 @@ export function useRoom() {
     }
 
     // PRESENCE SYNC
-    gameChannel.value.on("presence", { event: "sync" }, () => {
-      const newState = gameChannel.value.presenceState();
+    const channel = gameChannel.value;
+    if (!channel) return;
 
-      if (!newState) {
-        console.error("Failed to get presence state.");
-        return;
-      }
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState() ?? {};
 
-      players.value = Object.keys(newState)
-        .map((key) => newState[key][0])
-        .sort((a, b) => (a.joined_at ?? 0) - (b.joined_at ?? 0));
+      players.value = Object.values(state)
+        .map((arr: any) => arr?.[0])
+        .filter(Boolean)
+        .sort((a: any, b: any) => (a?.joined_at ?? 0) - (b?.joined_at ?? 0));
     });
 
     // BROADCAST LISTENERS
     // cards_dealt
-    gameChannel.value.on("broadcast", { event: "cards_dealt" }, async () => {
+    channel.on("broadcast", { event: "cards_dealt" }, async () => {
       console.log("[BROADCAST] cards_dealt");
       const { data, error } = await supabase
         .from("hand_cards")
@@ -220,7 +241,7 @@ export function useRoom() {
     });
 
     // game_initialize
-    gameChannel.value.on(
+    channel.on(
       "broadcast",
       { event: "game_initialize" },
       async (body) => {
@@ -239,13 +260,9 @@ export function useRoom() {
     );
 
     // game_start
-    gameChannel.value.on("broadcast", { event: "game_start" }, () => {
+    channel.on("broadcast", { event: "game_start" }, () => {
       gameStarted.value = true;
     });
-  }
-
-  async function resetPlayerList() {
-    players.value = [];
   }
 
   return {
@@ -261,6 +278,7 @@ export function useRoom() {
     getRoomMetadata,
     insertPlayerInRoomTable,
     joinRoom,
+    enterRoom,
     deletePlayerFromRoomTable,
     markMemberInactive,
     trackMyStatus,
