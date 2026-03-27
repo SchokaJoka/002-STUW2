@@ -14,26 +14,18 @@ const roomCode = ref<string>("");
 
 const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
-const gameMasterId = ref<string | null>(null);
 const isGameMaster = useState<boolean>("isGameMaster", () => false);
 
-const gameState = ref<any>(null);
-const roundStatus = ref<string>("lobby");
-
-const blackCard = ref<any>(null);
 const myChosenWhiteCards = ref<any[]>([]);
-const playerSubmissions = ref<any[]>([]);
 const selectedPlayerSubmission = ref<any | null>(null);
 const isWhiteCardsSubmitted = ref<boolean>(false);
 const isSubmittingWhiteCards = ref<boolean>(false);
 const isChoosingWinner = ref<boolean>(false);
 const whiteCardPickError = ref<string>("");
 
-const GAP_TOKEN: string = "[[W1tnYXBdXQ==]]";
+const gameStarted = useState<boolean>("gameStarted", () => false);
 
-const winnerUsername = ref<string>("");
-const winnerUserId = ref<string | null>(null);
-const winnerCards = ref<string[]>([]);
+const GAP_TOKEN: string = "[[W1tnYXBdXQ==]]";
 
 // ============================================================
 
@@ -44,9 +36,9 @@ const { getCardCollections } = useCards();
 const {
   // Variables
   isLeaving,
-  gameStarted,
   playerHandCards,
   collectionCards,
+  gameMasterId,
 
   // Functions
   getRoomIdByCode,
@@ -62,20 +54,67 @@ const {
   // Variables
   isStartingGame,
   isStartingNextRound,
+  gameState,
+  roundStatus,
+  blackCard,
+  playerSubmissions,
+  winnerUserId,
+  winnerUsername,
+  winnerCards,
+  gameManagerRoomId,
+  gameManagerPlayerId,
 
   // Functions
   initializeGame,
   initializeNextRound,
-  // setGameMasterIfNotExists,
-  getGameMasterId,
+  // getGameMasterId,
+  handleGameStateChanges,
 } = useGameManager();
 
-const { getPlayerScore, updatePlayerScoreFromMember, syncPlayerScoresForRoom } =
-  usePlayerScores();
+const { getPlayerScore, updatePlayerScoreFromMember, syncPlayerScoresForRoom } = usePlayerScores();
 // ============================================================
 
 // COMPUTED PPROPERTIES
 // ============================================================
+
+watch(gameStarted, async () => {
+  console.log("gameStarted changed: ", gameStarted.value);
+});
+
+watch(roundStatus, async (newStatus) => {
+  if (newStatus === "round_start" && roomId.value && playerId.value) {
+    // Load hand cards when round starts
+    const { data: handCardsData, error: handError } = await supabase
+      .from("hand_cards")
+      .select("*")
+      .eq("room_id", roomId.value)
+      .eq("user_id", playerId.value);
+
+    if (handError) {
+      console.error("Error fetching hand cards:", handError);
+    } else {
+      playerHandCards.value = (handCardsData ?? []).map((h) => ({
+        ...h,
+        card_id: h.card_id ?? "",
+      }));
+    }
+
+    // Load collection cards if not already loaded
+    if (collectionCards.value.length === 0 && gameState.value?.set_id) {
+      const { data: cardsData, error: cardsError } = await supabase
+        .from("cards")
+        .select("*")
+        .eq("collection_id", gameState.value.set_id);
+
+      if (cardsError) {
+        console.error("Error fetching collection cards:", cardsError);
+      } else {
+        collectionCards.value = cardsData ?? [];
+      }
+    }
+  }
+});
+
 
 const czarId = computed(() => {
   if (!gameStarted.value) return null;
@@ -179,144 +218,9 @@ const round = computed(() => {
 });
 // ============================================================
 
-// Game State Handling
-// ============================================================
-async function handleRoundStart(currentMetaData: any) {
-  gameState.value = currentMetaData;
-  roundStatus.value = currentMetaData.round_status;
-  winnerUserId.value = null;
-
-  // Load hand cards
-  const { data: handCardsData, error: handError } = await supabase
-    .from("hand_cards")
-    .select("*")
-    .eq("room_id", roomId.value)
-    .eq("user_id", playerId.value);
-
-  if (handError) {
-    console.error("Error fetching hand cards:", handError);
-  } else {
-    playerHandCards.value = (handCardsData ?? []).map((h) => ({
-      ...h,
-      card_id: h.card_id ?? "",
-    }));
-  }
-
-  // Load collection cards if not already loaded
-  if (collectionCards.value.length === 0 && currentMetaData.set_id) {
-    const { data: cardsData, error: cardsError } = await supabase
-      .from("cards")
-      .select("*")
-      .eq("collection_id", currentMetaData.set_id);
-
-    if (cardsError) {
-      console.error("Error fetching collection cards:", cardsError);
-    } else {
-      collectionCards.value = cardsData ?? [];
-    }
-  }
-
-  // Load player submission status
-  const { data, error } = await supabase
-    .from("room_members")
-    .select("status")
-    .eq("room_id", roomId.value)
-    .eq("user_id", playerId.value);
-
-  if (error) {
-    console.error("Error checking submission status:", error);
-    return;
-  }
-
-  const status = data?.[0]?.status;
-  isWhiteCardsSubmitted.value = status === "submitted";
-  blackCard.value = currentMetaData.black_card ?? null;
-}
-
-async function handleRoundSubmitted(currentMetaData: any) {
-  gameState.value = currentMetaData;
-  roundStatus.value = currentMetaData.round_status;
-  winnerUserId.value = null;
-
-  if (!czarId.value) return;
-
-  const { data, error } = await supabase
-    .from("room_members")
-    .select("*")
-    .eq("room_id", roomId.value)
-    .neq("user_id", czarId.value);
-
-  const { error: error2 } = await supabase
-    .from("room_members")
-    .update({ status: "waiting" })
-    .eq("room_id", roomId.value)
-    .eq("user_id", playerId.value);
-
-  if (error) {
-    console.error("Error loading submitted white cards:", error);
-    return;
-  }
-
-  if (error2) {
-    console.error("Error updating player status to waiting:", error2);
-    return;
-  }
-
-  isWhiteCardsSubmitted.value = false;
-  blackCard.value = currentMetaData.black_card ?? null;
-
-  playerSubmissions.value = data ?? [];
-  console.log("submittedWhiteCards: ", playerSubmissions.value);
-}
-
-async function handleRoundEnd(currentMetaData: any) {
-  const winnerId = currentMetaData.current_winner?.user_id;
-  if (!winnerId) return;
-  winnerUserId.value = winnerId;
-  blackCard.value = currentMetaData.black_card ?? null;
-  winnerUsername.value =
-    players.value.find((p) => p.user_id === winnerId)?.user_name || "";
-  winnerCards.value =
-    currentMetaData.current_winner?.metadata?.submitted_cards ?? [];
-}
-
-async function handleGameStateChanges(currentMetaData: any) {
-  gameState.value = currentMetaData;
-  roundStatus.value = currentMetaData.round_status;
-
-  // Set gameStarted based on actual round status
-  if (currentMetaData.round_status !== "lobby") {
-    gameStarted.value = true;
-  }
-
-  switch (currentMetaData.round_status) {
-    case "round_start":
-      await handleRoundStart(currentMetaData);
-      break;
-    case "round_submitted":
-      await handleRoundSubmitted(currentMetaData);
-      break;
-    case "round_end":
-      await handleRoundEnd(currentMetaData);
-      break;
-    default:
-      console.warn("Unknown round status:", currentMetaData.round_status);
-  }
-}
-
-async function startGame() {
-  await initializeGame(roomId.value, roomCode.value, dev2gaps.value);
-}
-
-async function startNexRound() {
-  resetWinner();
-  initializeNextRound(roomId.value);
-}
-// ============================================================
-
 // Player Choose White Card Handling
 // ============================================================
-async function pickCard(card) {
+async function pickCard(card: any) {
   if (isCzar.value) return;
 
   whiteCardPickError.value = "";
@@ -374,8 +278,8 @@ async function submitCards() {
         whiteCardPickError.value = "";
 
         isWhiteCardsSubmitted.value = true;
-        
-        
+
+
 
         console.log("[EDGE] success submit_white_cards", data);
       }
@@ -432,7 +336,6 @@ async function submitWinner(winnerSubmission: any) {
 // onMounted, onUnmounted
 // ============================================================
 onMounted(async () => {
-  // Extract room code from route
   roomCode.value = String(route.params.roomCode ?? "").toUpperCase();
 
   roomId.value = await getRoomIdByCode(roomCode.value);
@@ -442,9 +345,11 @@ onMounted(async () => {
     return;
   }
 
+  // Set the gameManager's roomId
+  gameManagerRoomId.value = roomId.value;
+
   // Load room metadata only after roomId is known
   const roomMetadata = await getRoomMetadata(roomId.value);
-  console.log("Fetched roomMetadata on mount:", roomMetadata);
 
   // Authentication
   if (user.value) {
@@ -459,6 +364,9 @@ onMounted(async () => {
     return;
   }
 
+  // Set the gameManager's playerId
+  gameManagerPlayerId.value = playerId.value;
+
   const { data: room } = await supabase
     .from("rooms")
     .select("owner")
@@ -468,67 +376,98 @@ onMounted(async () => {
 
   await syncPlayerScoresForRoom(roomId.value);
 
-  // STEP 1: Setup listeners for ALL players (centralized)
-  await enterRoom(roomId.value, roomCode.value, playerId.value, myPresenceStatus.value);
+  if (gameChannel.value) {
+    console.log("gameChannel exists:", gameChannel.value);
+  } else {
+    console.warn("gameChannel not exists, rejoining");
+    enterRoom(roomId.value, roomCode.value, playerId.value, "waiting");
+  }
 
-  // Realtime table listeners (after channel is created)
-  gameChannel.value?.on(
-    "postgres_changes",
-    {
-      event: "UPDATE",
-      schema: "public",
-      table: "rooms",
-      filter: `id=eq.${roomId.value}`,
-    },
-    (payload) => {
-      console.log("[POSTGRES CHANGES] rooms updated: ", payload);
-      if (payload.new.owner) {
-        gameMasterId.value = payload.new.owner;
-      }
+  // // Realtime table listeners (after channel is created)
+  // gameChannel.value?.on(
+  //   "postgres_changes",
+  //   {
+  //     event: "UPDATE",
+  //     schema: "public",
+  //     table: "rooms",
+  //     filter: `id=eq.${roomId.value}`,
+  //   },
+  //   (payload) => {
+  //     console.log("[POSTGRES CHANGES] rooms updated: ", payload);
+  //     if (payload.new.owner) {
+  //       gameMasterId.value = payload.new.owner;
+  //     }
 
-      const metadata = payload.new.metadata as any;
-      if (metadata) handleGameStateChanges(metadata);
-    },
-  );
+  //     const metadata = payload.new.metadata as any;
+  //     if (metadata) handleGameStateChanges(metadata);
+  //   },
+  // );
+
+  // gameChannel.value?.subscribe(async (status) => {
+  //   if (status === "SUBSCRIBED") {
+  //     await trackMyStatus(myPresenceStatus.value);
+  //   }
+  // });
 
   // STEP 2: Conditionally load game state if game already started
-  const metadata = (roomMetadata?.metadata as any) ?? null;
-  if (metadata && metadata.round_status !== "lobby") {
-    const { data: handCardsData } = await supabase
-      .from("hand_cards")
-      .select("*")
-      .eq("room_id", roomId.value)
-      .eq("user_id", playerId.value);
+  const metadata = (roomMetadata?.metadata ?? null) as any;
+  if (metadata) {
+    if (metadata.round_status !== "lobby") {
+      console.log("Game already in progress, loading game state...");
 
-    playerHandCards.value = (handCardsData ?? []).map((h) => ({
-      ...h,
-      card_id: h.card_id ?? "",
-    }));
-
-    if (metadata.set_id) {
-      const { data: cardsData } = await supabase
-        .from("cards")
+      const { data: handCardsData, error } = await supabase
+        .from("hand_cards")
         .select("*")
-        .eq("collection_id", metadata.set_id);
+        .eq("room_id", roomId.value)
+        .eq("user_id", playerId.value);
 
-      collectionCards.value = cardsData ?? [];
+
+      if (error) {
+        console.error("Error fetching hand cards:", error);
+      }
+
+      console.log("playerHandCards: ", handCardsData);
+
+      playerHandCards.value = (handCardsData ?? []).map((h: any) => ({
+        ...h,
+        card_id: h.card_id ?? "",
+      }));
+
+      if (metadata.set_id) {
+        const { data: cardsData } = await supabase
+          .from("cards")
+          .select("*")
+          .eq("collection_id", metadata.set_id);
+
+        collectionCards.value = cardsData ?? [];
+      }
+
+      await syncPlayerScoresForRoom(roomId.value);
+
+      blackCard.value = metadata.black_card ?? null;
     }
-
-    await syncPlayerScoresForRoom(roomId.value);
-
-    blackCard.value = metadata.black_card ?? null;
-    gameStarted.value = true;
+    console.log("Initial game state loaded: ", metadata);
     await handleGameStateChanges(metadata);
   }
+
+  console.log("Initial gameStarted: ", gameStarted.value);
 });
 onUnmounted(async () => {
-  if (!isLeaving.value) await markMemberInactive(roomId.value, playerId.value);
+  if (!isLeaving.value) {
+    await markMemberInactive(roomId.value, playerId.value);
+    gameChannel.value = null;
+  }
   if (gameChannel.value) await supabase.removeChannel(gameChannel.value);
 });
 // ============================================================
 
 // OTHER
 // ============================================================
+
+async function startNexRound() {
+  initializeNextRound(roomId.value);
+}
+
 const canEditChosenGaps = computed(() => {
   return (
     !isCzar.value &&
@@ -719,7 +658,7 @@ const dev2gaps = ref(false);
         roundStatus === 'round_start' &&
         isWhiteCardsSubmitted === false
       " class="w-full flex-1">
-        <MyCarousel :hand-cards="playerHandCards" :collection-cards="availableCollectionCards"
+        <MyCarousel :hand-cards="normalizedHandCards" :collection-cards="availableCollectionCards"
           :selected-card-ids="selectedHandCardIds" @select-card="pickCard" />
       </div>
     </section>

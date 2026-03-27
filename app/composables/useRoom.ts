@@ -14,8 +14,12 @@ export function useRoom() {
     "gameChannel",
     () => null,
   );
+
+  const gameMasterId = ref<string>("");
+  const { handleGameStateChanges } = useGameManager();
+
   const isLeaving = ref<boolean>(false);
-  const gameStarted = ref<boolean>(false);
+  const gameStarted = useState<boolean>("gameStarted", () => false);
   const players = useState<any[]>("players", () => []);
   const playerHandCards = ref<HandCards[]>([]);
   const collectionCards = ref<CollectionCards[]>([]);
@@ -31,7 +35,6 @@ export function useRoom() {
       console.error("Room does not exist.");
       return "";
     }
-    console.log("Room data:", data);
     return data.id;
   }
 
@@ -162,8 +165,8 @@ export function useRoom() {
     playerId: string,
     initialStatus: string,
   ) {
-    await insertPlayerInRoomTable(roomId, playerId);
     await joinRoom(roomCode, playerId);
+    await insertPlayerInRoomTable(roomId, playerId);
     await setupBroadcastListeners(roomId, playerId);
 
     gameChannel.value?.subscribe(async (status) => {
@@ -193,6 +196,14 @@ export function useRoom() {
   }
 
   async function joinRoom(roomCode: string, playerId: string) {
+    if (gameChannel.value !== null) {
+      supabase.removeAllChannels();
+      gameChannel.value = null;
+      console.warn(
+        "Existing game channel found. Unsubscribing before joining new room.",
+      );
+    }
+
     gameChannel.value = supabase.channel(`${roomCode}`, {
       config: { broadcast: { self: true }, presence: { key: playerId } },
     });
@@ -211,11 +222,8 @@ export function useRoom() {
     }
 
     // PRESENCE SYNC
-    const channel = gameChannel.value;
-    if (!channel) return;
-
-    channel.on("presence", { event: "sync" }, () => {
-      const state = channel.presenceState() ?? {};
+    gameChannel.value.on("presence", { event: "sync" }, () => {
+      const state = gameChannel.value.presenceState() ?? {};
 
       players.value = Object.values(state)
         .map((arr: any) => arr?.[0])
@@ -225,7 +233,7 @@ export function useRoom() {
 
     // BROADCAST LISTENERS
     // cards_dealt
-    channel.on("broadcast", { event: "cards_dealt" }, async () => {
+    gameChannel.value.on("broadcast", { event: "cards_dealt" }, async () => {
       console.log("[BROADCAST] cards_dealt");
       const { data, error } = await supabase
         .from("hand_cards")
@@ -238,10 +246,11 @@ export function useRoom() {
         return;
       }
       playerHandCards.value = data ?? [];
+      console.log("Updated player hand cards: ", playerHandCards.value);
     });
 
     // game_initialize
-    channel.on(
+    gameChannel.value.on(
       "broadcast",
       { event: "game_initialize" },
       async (body) => {
@@ -260,18 +269,39 @@ export function useRoom() {
     );
 
     // game_start
-    channel.on("broadcast", { event: "game_start" }, () => {
+    gameChannel.value.on("broadcast", { event: "game_start" }, () => {
+      console.log("[BROADCAST] game_start");
       gameStarted.value = true;
     });
+
+    // Realtime table listeners (after channel is created)
+    gameChannel.value?.on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "rooms",
+        filter: `id=eq.${roomId}`,
+      },
+      (payload) => {
+        console.log("[POSTGRES CHANGES] rooms updated: ", payload);
+        if (payload.new.owner) {
+          gameMasterId.value = payload.new.owner;
+        }
+
+        const metadata = payload.new.metadata as any;
+        if (metadata) handleGameStateChanges(metadata);
+      },
+    );
   }
 
   return {
     // Variables
     isLeaving,
-    gameStarted,
     players,
     playerHandCards,
     collectionCards,
+    gameMasterId,
 
     // Functions
     getRoomIdByCode,

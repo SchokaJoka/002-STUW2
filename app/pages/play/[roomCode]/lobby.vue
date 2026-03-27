@@ -6,6 +6,8 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 const user = useSupabaseUser();
 const supabase = useSupabaseClient();
 
+const isJoiningGame = ref(false);
+
 const route = useRoute();
 const roomId = ref<string | null>(null);
 const playerId = ref<string>("");
@@ -28,7 +30,9 @@ const {
   // Functions
   getRoomIdByCode,
   enterRoom,
+  joinRoom,
   deletePlayerFromRoomTable,
+  insertPlayerInRoomTable,
   markMemberInactive,
   trackMyStatus,
   setupBroadcastListeners,
@@ -54,11 +58,6 @@ watch([playerId, gameMasterId], ([newPlayerId, newGameMasterId]) => {
 // FUNCTIONS
 // ============================================================
 async function startGame() {
-  console.log("[Lobby] startGame called");
-  console.log("[Lobby] roomId.value:", roomId.value);
-  console.log("[Lobby] roomCode.value:", roomCode.value);
-  console.log("[Lobby] dev2gaps.value:", dev2gaps.value);
-
   if (!roomId.value || !roomCode.value) {
     console.log("[Lobby] startGame aborted - missing roomId or roomCode");
     return;
@@ -70,56 +69,60 @@ async function startGame() {
 // onMounted, onUnmounted
 // ============================================================
 onMounted(async () => {
-  try {
-    // Extract room code from route
-    roomCode.value = String(route.params.roomCode ?? "").toUpperCase();
-    console.log("[Lobby] Extracted roomCode from route:", roomCode.value);
+  // Extract room code from route
+  roomCode.value = String(route.params.roomCode ?? "").toUpperCase();
+  console.log("[Lobby] Extracted roomCode from route:", roomCode.value);
 
-    roomId.value = await getRoomIdByCode(roomCode.value);
+  roomId.value = await getRoomIdByCode(roomCode.value);
 
-    if (!roomId.value) {
-      console.error("Missing room ID");
-      return;
-    }
-
-    // Authentication
-    if (user.value) {
-      playerId.value = user.value.sub;
-    } else {
-      navigateTo("/login?redirect=joinGame&roomCode=" + roomCode.value);
-      return;
-    }
-
-    if (!playerId.value) {
-      console.error("Missing player ID");
-      return;
-    }
-
-    const { data: room } = await supabase
-      .from("rooms")
-      .select("owner")
-      .eq("id", roomId.value)
-      .single();
-    gameMasterId.value = room?.owner ?? null;
-    console.log("Game master ID from DB:", gameMasterId.value);
-
-    await enterRoom(roomId.value, roomCode.value, playerId.value, "waiting");
-
-    // Listen for navigate_to_game broadcast to transition to game.vue
-    gameChannel.value?.on("broadcast", { event: "navigate_to_game" }, (payload: any) => {
-      console.log("[Lobby] Received navigate_to_game with payload:", payload);
-      console.log("[Lobby] roomCode from broadcast:", payload.payload.roomCode);
-      navigateTo(`/play/${payload.payload.roomCode}/game`);
-    });
-
-  } catch (err) {
-    console.error("[onMounted] Error:", err);
+  if (!roomId.value) {
+    console.error("Missing room ID");
+    return;
   }
+
+  // Authentication
+  if (user.value) {
+    playerId.value = user.value.sub;
+  } else {
+    navigateTo("/login?redirect=joinGame&roomCode=" + roomCode.value);
+    return;
+  }
+
+  if (!playerId.value) {
+    console.error("Missing player ID");
+    return;
+  }
+
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("owner")
+    .eq("id", roomId.value)
+    .single();
+  gameMasterId.value = room?.owner ?? null;
+  console.log("Game master ID from DB:", gameMasterId.value);
+
+  await enterRoom(roomId.value, roomCode.value, playerId.value, "waiting");
+
+  // Listen for navigate_to_game broadcast to transition to game.vue
+  gameChannel.value?.on("broadcast", { event: "navigate_to_game" }, (payload: any) => {
+    isJoiningGame.value = true;
+    console.log("[BROADCAST] navigate_to_game:", payload);
+    navigateTo(`/play/${payload.payload.roomCode}/game`);
+  });
 });
 
 onUnmounted(async () => {
   if (!isLeaving.value && roomId.value) await markMemberInactive(roomId.value, playerId.value);
-  if (gameChannel.value) await supabase.removeChannel(gameChannel.value);
+
+  if (isJoiningGame.value) {
+    console.log("[Lobby] Unmounted while joining game, skipping cleanup");
+    return;
+  } else {
+    console.log("[Lobby] Unmounted, performing cleanup");
+    gameChannel.value?.unsubscribe();
+    supabase.removeAllChannels();
+    gameChannel.value = null;
+  }
 });
 // ============================================================
 // UTILITIES
