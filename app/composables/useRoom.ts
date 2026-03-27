@@ -15,14 +15,17 @@ export function useRoom() {
     () => null,
   );
 
-  const gameMasterId = ref<string>("");
+  const gameMasterId = useState<string>("gameMasterId", () => "");
   const { handleGameStateChanges } = useGameManager();
 
   const isLeaving = ref<boolean>(false);
   const gameStarted = useState<boolean>("gameStarted", () => false);
   const players = useState<any[]>("players", () => []);
-  const playerHandCards = ref<HandCards[]>([]);
-  const collectionCards = ref<CollectionCards[]>([]);
+  const playerHandCards = useState<HandCards[]>("playerHandCards", () => []);
+  const collectionCards = useState<CollectionCards[]>(
+    "collectionCards",
+    () => [],
+  );
 
   async function getRoomIdByCode(roomCode: string): Promise<string> {
     const { data } = await supabase

@@ -16,9 +16,9 @@ const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
 const isGameMaster = useState<boolean>("isGameMaster", () => false);
 
-const myChosenWhiteCards = ref<any[]>([]);
+const myChosenWhiteCards = useState<any[]>("myChosenWhiteCards", () => []);
 const selectedPlayerSubmission = ref<any | null>(null);
-const isWhiteCardsSubmitted = ref<boolean>(false);
+const isWhiteCardsSubmitted = useState<boolean>("isWhiteCardsSubmitted", () => false);
 const isSubmittingWhiteCards = ref<boolean>(false);
 const isChoosingWinner = ref<boolean>(false);
 const whiteCardPickError = ref<string>("");

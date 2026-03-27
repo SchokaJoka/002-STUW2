@@ -9,21 +9,24 @@ export function useGameManager() {
     () => null,
   );
   const isGameMaster = useState<boolean>("isGameMaster", () => false);
-  const gameState = ref<any>({});
-  const roundStatus = ref<string>("lobby");
-  const winnerUserId = ref<string | null>(null);
-  const winnerUsername = ref<string>("");
-  const winnerCards = ref<any[]>([]);
-  const playerSubmissions = ref<any[]>([]);
-  const blackCard = ref<any | null>(null);
+  const gameState = useState<any>("gameState", () => ({}));
+  const roundStatus = useState<string>("roundStatus", () => "lobby");
+  const winnerUserId = useState<string | null>("winnerUserId", () => null);
+  const winnerUsername = useState<string>("winnerUsername", () => "");
+  const winnerCards = useState<any[]>("winnerCards", () => []);
+  const playerSubmissions = useState<any[]>("playerSubmissions", () => []);
+  const blackCard = useState<any | null>("blackCard", () => null);
+  const isWhiteCardsSubmitted = useState<boolean>("isWhiteCardsSubmitted", () => false);
+  const myChosenWhiteCards = useState<any[]>("myChosenWhiteCards", () => []);
+
 
   const isStartingGame = ref(false);
   const isStartingNextRound = ref(false);
 
-  let errorMessage = ref<string | null>(null);
+  const errorMessage = useState<string | null>("gameErrorMessage", () => null);
 
-  const roomId = ref<string | null>(null);
-  const playerId = ref<string | null>(null);
+  const roomId = useState<string | null>("gameManagerRoomId", () => null);
+  const playerId = useState<string | null>("gameManagerPlayerId", () => null);
 
   const gameStarted = useState<boolean>("gameStarted", () => false);
 
@@ -205,8 +208,8 @@ export function useGameManager() {
       return;
     }
 
-    const status = data?.[0]?.status;
-    // isWhiteCardsSubmitted is managed in the component
+    isWhiteCardsSubmitted.value = data?.[0]?.status === "submitted";
+    
     blackCard.value = currentMetaData.black_card ?? null;
   }
 
@@ -239,6 +242,8 @@ export function useGameManager() {
     }
 
     // isWhiteCardsSubmitted is managed in the component
+    isWhiteCardsSubmitted.value = false;
+    myChosenWhiteCards.value = [];
     blackCard.value = currentMetaData.black_card ?? null;
 
     playerSubmissions.value = data ?? [];
