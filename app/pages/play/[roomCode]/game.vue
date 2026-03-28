@@ -592,14 +592,14 @@ const dev2gaps = ref(false);
 
         <!-- Player Hand -->
         <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false"
-          class="w-full h-full overflow-y-visible">
+          class="w-full h-full overflow-y-clip">
           <MyCarousel :items="playerHandCards" :lookup-cards="collectionCards" :selected-ids="selectedHandCardIds"
             @select-item="pickCard">
           </MyCarousel>
         </div>
 
         <!-- Judging Area -->
-        <div v-if="roundStatus === 'round_submitted'" class="w-full h-full overflow-y-visible">
+        <div v-if="roundStatus === 'round_submitted'" class="w-full h-full overflow-y-clip">
           <MyCarousel :items="judgingCards" :lookup-cards="collectionCards" :selected-ids="selectedJudgingCardIds"
             selected-class="selected-judging" @select-item="pickWinner">
           </MyCarousel>
