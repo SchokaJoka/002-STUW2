@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Tables } from "../../../types/database.types";
+import type { Tables } from "../../types/database.types";
 
 type Card = Tables<"cards">;
 
@@ -38,7 +38,7 @@ function save() {
 <template>
     <div class="relative w-full flex flex-row items-center justify-between gap-4 bg-neutral-50 p-5 rounded-lg border border-[3px] border-black">
         <p v-if="!isEditing" class="w-full text-black text-xl font-semibold">{{ card.text }}</p>
-        <input v-else ref="editInput" v-model="editingText" @keyup.enter="save()" @blur="save()" type="text"
+        <input v-else ref="editInput" v-model="editingText" @keyup.enter="$event.target?.blur()" @blur="save()" type="text"
             class="w-full text-black text-xl font-semibold bg-transparent border-none focus:ring-0" />
         <div class="flex flex-row gap-2 items-center">
             <div class="hover:cursor-pointer" @click="startEdit()">

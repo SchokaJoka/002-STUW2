@@ -577,7 +577,7 @@ const dev2gaps = ref(false);
     <section name="game-section" v-if="gameStarted"
       class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex items-center gap-4 overflow-y-visible py-4"
       :class="isCzar ? 'flex-col-reverse justify-start' : 'flex-col justify-start'">
-      <TransitionGroup name="fade" mode="out-in">
+      <TransitionGroup name="fade">
         <!-- Black Card -->
         <div v-if="blackCard"
           class="w-full max-h-[40dvh] max-w-[55dvw] min-w-[16rem] md:max-w-md h-96 rounded-xl bg-black p-6 pb-12 text-lg font-bold text-white">

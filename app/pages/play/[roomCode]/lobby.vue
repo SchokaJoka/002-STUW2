@@ -19,6 +19,9 @@ const roomCode = ref<string>("");
 const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
 
+const collections = ref<any[]>([]);
+const selectedCollectionId = ref<string | null>(null);
+
 // ============================================================
 
 // COMPOSABLES
@@ -45,6 +48,8 @@ const {
   // Functions
   initializeGame,
 } = useGameManager();
+
+const { getCardCollections } = useCards();
 // ============================================================
 
 // COMPUTED PROPERTIES
@@ -63,7 +68,7 @@ async function startGame() {
     console.log("[Lobby] startGame aborted - missing roomId or roomCode");
     return;
   }
-  await initializeGame(roomId.value, roomCode.value, dev2gaps.value);
+  await initializeGame(roomId.value, roomCode.value, dev2gaps.value, selectedCollectionId.value);
 }
 // ============================================================
 
@@ -110,6 +115,8 @@ onMounted(async () => {
     console.log("[BROADCAST] navigate_to_game:", payload);
     navigateTo(`/play/${payload.payload.roomCode}/game`);
   });
+
+  collections.value = await getCardCollections();
 });
 
 onBeforeRouteLeave((to) => {
@@ -214,6 +221,17 @@ const dev2gaps = ref(false);
           </svg>
         </div>
       </div>
+
+      <!-- Collection Selection -->
+       <div class="w-full flex flex-col gap-4">
+         <div v-for="collection in collections" 
+          :key="collection.id" 
+          class="w-full flex flex-col gap-2 p-4 bg-neutral-200 rounded-lg hover:cursor-pointer hover:bg-neutral-300" 
+          @click="() => { selectedCollectionId = collection.id }"
+          :class="(collection.id === selectedCollectionId) ? 'border-4 border-blue-500' : ''">
+            <p>{{ collection.name }}</p>
+          </div>
+       </div>
     </main>
 
     <!-- Footer -->

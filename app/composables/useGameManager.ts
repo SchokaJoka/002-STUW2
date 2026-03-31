@@ -46,11 +46,13 @@ export function useGameManager() {
     roomId: string,
     roomCode: string,
     dev2gaps: boolean,
+    collectionId: string,
   ) {
     console.log("[GameManager] initializeGame called with:", {
       roomId,
       roomCode,
       dev2gaps,
+      collectionId,
     });
 
     if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
@@ -71,26 +73,11 @@ export function useGameManager() {
       payload: { roomCode },
     });
 
-    // Fetch available card sets and pick the first one
-    const sets = await getCardCollections();
-    if (!sets || sets.length === 0) {
-      console.error("No card sets available.");
-      errorMessage.value = "No card sets available to start the game.";
-      return;
-    }
-
-    const chosenSet = sets[0];
-    if (!chosenSet) {
-      console.error("Failed to pick a card set.");
-      errorMessage.value = "Failed to pick a card set.";
-      return;
-    }
-
     console.log("[GameManager] Broadcasting game_initialize");
     gameChannel.value.send({
       type: "broadcast",
       event: "game_initialize",
-      payload: { set_id: chosenSet.id }, // For now we just hardcode a set, but you could add a UI to select one
+      payload: { set_id: collectionId },
     });
 
     console.log("[GameManager] Broadcasting game_start");
@@ -105,7 +92,7 @@ export function useGameManager() {
       {
         method: "POST",
         body: {
-          set_id: chosenSet.id,
+          set_id: collectionId,
           room_id: roomId,
           cardsPerPlayer: 8,
           dev2gaps: dev2gaps,

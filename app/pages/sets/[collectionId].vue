@@ -47,14 +47,14 @@
                             <div v-if="activeTab === 'page1'">
                                 <div class="flex flex-col gap-4">
                                     <EditorWhiteCard v-for="whiteCard in whiteCards" :key="whiteCard.id" :card="whiteCard"
-                                        @update="(text) => saveUpdate(whiteCard.id, { text })"
+                                        @update="(text) => saveUpdate(whiteCard.id, { text, updated_at: new Date().toISOString() })"
                                         @delete="deleteCard(whiteCard.id, false)" />
                                 </div>
                             </div>
                             <div v-else>
                                 <div class="flex flex-col gap-4">
                                     <EditorBlackCard v-for="blackCard in blackCards" :key="blackCard.id" :card="blackCard"
-                                        @update="(data) => saveUpdate(blackCard.id, { text: data.text, number_of_gaps: data.number_of_gaps })"
+                                        @update="(data) => saveUpdate(blackCard.id, { text: data.text, number_of_gaps: data.number_of_gaps, updated_at: new Date().toISOString() })"
                                         @delete="deleteCard(blackCard.id, true)" />
                                 </div>
                             </div>
@@ -84,51 +84,59 @@ const blackCards = ref<Cards[]>([]);
 const isLoading = ref(true);
 const placeholderRows = [1, 2, 3];
 
+const isUpdating = ref(false);
 
 const activeTab = ref("page1");
 const { headerEl, updateHeaderHeight } = useHeaderHeight("--sets-header-h");
 
 async function saveUpdate(cardId: string, updates: any) {
-    // const { error } = await supabase
-    //     .from("cards")
-    //     .update(updates)
-    //     .eq("id", cardId);
+    if (isUpdating.value) return;
+    isUpdating.value = true;
 
-    // if (error) {
-    //     console.error("Error updating card:", error);
-    //     alert("Failed to update card.");
-    // } else {
-    //     // Update local state
-    //     const whiteIdx = whiteCards.value.findIndex(c => c.id === cardId);
-    //     if (whiteIdx !== -1) {
-    //         whiteCards.value[whiteIdx] = { ...whiteCards.value[whiteIdx], ...updates };
-    //     } else {
-    //         const blackIdx = blackCards.value.findIndex(c => c.id === cardId);
-    //         if (blackIdx !== -1) {
-    //             blackCards.value[blackIdx] = { ...blackCards.value[blackIdx], ...updates };
-    //         }
-    //     }
-    // }
+    const { error } = await supabase
+        .from("cards")
+        .update(updates)
+        .eq("id", cardId);
+
+    if (error) {
+        console.error("Error updating card:", error);
+        alert("Failed to update card.");
+    } else {
+        // Update local state
+        const whiteIdx = whiteCards.value.findIndex(c => c.id === cardId);
+        if (whiteIdx !== -1) {
+            whiteCards.value[whiteIdx] = { ...whiteCards.value[whiteIdx], ...updates };
+        } else {
+            const blackIdx = blackCards.value.findIndex(c => c.id === cardId);
+            if (blackIdx !== -1) {
+                blackCards.value[blackIdx] = { ...blackCards.value[blackIdx], ...updates };
+            }
+        }
+    }
+    isUpdating.value = false;
+    return;
 }
 
 async function deleteCard(cardId: string, isBlack: boolean) {
-    // if (!confirm("Are you sure you want to delete this card? This action cannot be undone.")) return;
+    if (!confirm("Are you sure you want to delete this card? This action cannot be undone.")) return;
 
-    // const { error } = await supabase
-    //     .from("cards")
-    //     .delete()
-    //     .eq("id", cardId);
+    const { error } = await supabase
+        .from("cards")
+        .delete()
+        .eq("id", cardId);
 
-    // if (error) {
-    //     console.error("Error deleting card:", error);
-    //     alert("Failed to delete card.");
-    // } else {
-    //     if (isBlack) {
-    //         blackCards.value = blackCards.value.filter(c => c.id !== cardId);
-    //     } else {
-    //         whiteCards.value = whiteCards.value.filter(c => c.id !== cardId);
-    //     }
-    // }
+    if (error) {
+        console.error("Error deleting card:", error);
+        alert("Failed to delete card.");
+    } else {
+        if (isBlack) {
+            blackCards.value = blackCards.value.filter(c => c.id !== cardId);
+        } else {
+            whiteCards.value = whiteCards.value.filter(c => c.id !== cardId);
+        }
+    }
+
+    return;
 }
 
 onMounted(async () => {
