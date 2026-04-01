@@ -86,10 +86,12 @@
       <!-- Welcome -->
       <div class="flex flex-col items-center justify-center w-full gap-8"
         :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
-        <img class="rounded-2xl size-64" src="https://www.pngkey.com/png/detail/929-9298678_wally-wheres-waldo-face.png" alt="Waldo haha">
-        <h1 class="w-full h-fit text-black text-5xl font-normal">
-          Cards against Waldo *uwu*
-        </h1>
+        <div class="w-full flex flex-row gap-4 flex-wrap items-end justify-between">
+          <h1 class="h-fit text-black text-4xl font-normal">
+            Cards against Waldo *uwu*
+          </h1>
+          <img class="rounded-2xl size-32" src="https://www.nicepng.com/png/full/196-1967754_wheres-wally-wally-run-wheres-waldo-face.png" alt="Waldo haha">
+        </div>
         <Button @click="createGame()" variant="primary" size="lg" block class="rounded-xl">Create Game</Button>
         <Button @click="joinGame()" variant="primary" size="lg" block class="rounded-xl">Join Game</Button>
       </div>
