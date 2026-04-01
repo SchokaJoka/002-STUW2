@@ -71,10 +71,25 @@ function save() {
 
 <template>
     <div class="relative w-full flex flex-row items-center justify-between gap-4 bg-black p-5 rounded-lg border border-[3px] border-white">
-        <p v-if="!isEditing" class="w-full text-white text-xl font-semibold">{{ card.text }}</p>
+        <div v-if="!isEditing" class="w-full flex flex-row flex-wrap items-center gap-2 text-white text-xl font-semibold">
+            <template v-for="(part, index) in getTextParts(card.text || '')" :key="index">
+                <div
+                    v-if="part.isGap"
+                    class="inline-flex items-center justify-center px-4 py-1 rounded-md bg-white text-black text-sm font-semibold tracking-wider"
+                >
+                    ___
+                </div>
+                <span v-else>{{ part.text }}</span>
+            </template>
+        </div>
         <div v-else class="w-full flex flex-col gap-2">
             <div v-for="part, index in currentBlackCardText" :key="index" class="w-full flex flex-row gap-4">
-                <span v-if="part.isGap" class="text-white">{{ "GAP" }}</span>
+                <div
+                    v-if="part.isGap"
+                    class="inline-flex items-center justify-center px-4 py-1 border border-white border-2 rounded-md bg-white/10 text-white text-sm font-semibold tracking-wide"
+                >
+                    GAP
+                </div>
                 <input v-else type="text" v-model="part.text" class="flex-1 bg-white text-black px-2 py-1 rounded" />
             </div>
             <div class="w-full flex flex-row gap-2">

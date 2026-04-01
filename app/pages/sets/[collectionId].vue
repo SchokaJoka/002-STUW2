@@ -1,35 +1,60 @@
 <template>
-    <main class="w-full flex items-center justify-center">
+    <main class="w-full flex items-center justify-center bg-neutral-300">
         <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
             <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
-                <div class="cursor-pointer" @click="navigateTo('/sets')">
+                <div class="hover:cursor-pointer" @click="navigateTo('/sets')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="38" height="33" viewBox="0 0 38 33" fill="none">
                         <path
                             d="M37 31.8505C32.596 26.4042 28.6852 23.314 25.2676 22.5797C21.85 21.8454 18.5962 21.7345 15.5062 22.2469V32L1 16.0852L15.5062 1.00003V10.2699C21.22 10.3155 26.0776 12.3922 30.079 16.5C34.0798 20.6078 36.3868 25.7247 37 31.8505Z"
                             stroke="black" stroke-width="2" stroke-linejoin="round" />
                     </svg>
                 </div>
-                <p class="text-black text-4xl font-bold">{{ collection.name }}</p>
+                <input v-model="collection.name" ref="collectionNameInputRef" type="text" placeholder="new Card-Set" @keyup.enter="$event.target?.blur()" @blur="saveCollectionName(collectionId, collection.name)"
+                    class="p-2 w-full text-black text-4xl font-bold"></input>
+                <div class="flex py-2 hover:cursor-pointer" @click="focusInput()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <g clip-path="url(#clip0_271_923)">
+                            <path d="M6 24H0V18M21 9L15 3L18 0L24 6M9 21L3 15L12 6L18 12" fill="black" />
+                        </g>
+                        <defs>
+                            <clipPath id="clip0_271_923">
+                                <rect width="24" height="24" fill="white" />
+                            </clipPath>
+                        </defs>
+                    </svg>
+                </div>
             </div>
             <div class="w-full flex flex-row justify-center bg-white z-10">
                 <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
-                    <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
+                    <button
+                        class="w-full p-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page1'
                             ? 'text-black bg-neutral-300'
                             : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
-                        White Cards
+                        <span class="flex size-8 items-center justify-center bg-white rounded-full text-black">
+                            {{ whiteCards.length }}
+                        </span>
+                        <span>
+                            White Cards
+                        </span>
                     </button>
-                    <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
+                    <button
+                        class="w-full px-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page2'
                             ? 'text-black bg-neutral-300'
                             : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
-                        Black Cards
+                        <span class="flex size-8 items-center justify-center bg-black rounded-full text-white">
+                            {{ blackCards.length }}
+                        </span>
+                        <span>
+                            Black Cards
+                        </span>
                     </button>
                 </div>
             </div>
         </header>
 
-        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl bg-neutral-300">
+        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl">
             <div class="flex flex-col h-full w-full mt-[var(--sets-header-h)]">
 
                 <div class="h-fit flex flex-col p-4 min-h-screen">
@@ -46,14 +71,16 @@
                         <div :key="activeTab">
                             <div v-if="activeTab === 'page1'">
                                 <div class="flex flex-col gap-4">
-                                    <EditorWhiteCard v-for="whiteCard in whiteCards" :key="whiteCard.id" :card="whiteCard"
+                                    <EditorWhiteCard v-for="whiteCard in whiteCards" :key="whiteCard.id"
+                                        :card="whiteCard"
                                         @update="(text) => saveUpdate(whiteCard.id, { text, updated_at: new Date().toISOString() })"
                                         @delete="deleteCard(whiteCard.id, false)" />
                                 </div>
                             </div>
                             <div v-else>
                                 <div class="flex flex-col gap-4">
-                                    <EditorBlackCard v-for="blackCard in blackCards" :key="blackCard.id" :card="blackCard"
+                                    <EditorBlackCard v-for="blackCard in blackCards" :key="blackCard.id"
+                                        :card="blackCard"
                                         @update="(data) => saveUpdate(blackCard.id, { text: data.text, number_of_gaps: data.number_of_gaps, updated_at: new Date().toISOString() })"
                                         @delete="deleteCard(blackCard.id, true)" />
                                 </div>
@@ -74,6 +101,8 @@ import EditorBlackCard from "~/components/EditorBlackCard.vue";
 type Cards = Tables<"cards">;
 type Collections = Tables<"collections">;
 
+const collectionNameInputRef = ref<HTMLInputElement | null>(null);
+
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const collectionId = useRoute().params.collectionId as string;
@@ -88,6 +117,30 @@ const isUpdating = ref(false);
 
 const activeTab = ref("page1");
 const { headerEl, updateHeaderHeight } = useHeaderHeight("--sets-header-h");
+
+const focusInput = () => {
+    collectionNameInputRef.value?.focus();
+};
+
+async function saveCollectionName(collectionId: string, name: string) {
+    const trimmedName = name.trim();
+    if (trimmedName === "") {
+        alert("Collection name cannot be empty.");
+        return;
+    }
+
+    const { error } = await supabase
+        .from("collections")
+        .update({ name: trimmedName, updated_at: new Date().toISOString() })
+        .eq("id", collectionId);
+
+    if (error) {
+        console.error("Error updating collection name:", error);
+        alert("Failed to update collection name.");
+    } else {
+        collection.value.name = trimmedName;
+    }
+}
 
 async function saveUpdate(cardId: string, updates: any) {
     if (isUpdating.value) return;

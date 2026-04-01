@@ -17,7 +17,7 @@
         :class="isMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'" @click="closeMenu" />
 
       <aside
-        class="absolute left-0 top-0 h-svh w-64 flex flex-col bg-white shadow-lg transition-transform duration-300 ease-out"
+        class="absolute left-0 top-0 h-lvh w-64 flex flex-col bg-neutral-50 shadow-lg transition-transform duration-300 ease-out"
         :class="isMenuOpen ? 'translate-x-0' : '-translate-x-full'">
         <div class="flex items-center justify-between p-4">
           <div class="h-[24px]"></div>
@@ -33,7 +33,7 @@
               @click="goToProfile">
               Profile
             </button>
-            <button class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal" @click="navigateTo('/sets')">
+            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal" @click="navigateTo('/sets')">
               Sets
             </button>
             <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal"
@@ -79,7 +79,8 @@
       </aside>
     </div>
 
-    <section class="relative flex flex-col items-center justify-center min-h-svh w-full max-w-2xl p-8 gap-8">
+    <section class="relative flex flex-col items-center justify-center min-h-lvh w-full max-w-2xl p-8 gap-8">
+      <!-- Welcome -->
       <div class="flex flex-col items-center justify-center h-svh w-full p-8 gap-8">
         <h1 class="w-full h-fit text-black text-5xl font-normal">
           Der Kampf gegen das Bünzlitum
@@ -113,6 +114,7 @@
 </template>
 
 <script setup>
+
 const lobbyError = ref("");
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();

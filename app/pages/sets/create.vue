@@ -15,18 +15,28 @@
             <div class="w-full flex flex-row justify-center bg-white z-10">
                 <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
                     <button
-                        class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
+                        class="w-full px-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page1'
                             ? 'text-black bg-neutral-300'
                             : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
-                        White Cards
+                        <span class="flex size-8 items-center justify-center bg-white rounded-full text-black">
+                                {{ whiteCards.length }}
+                        </span>
+                        <span>
+                            White Cards
+                        </span>
                     </button>
                     <button
-                        class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
+                        class="w-full px-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page2'
                             ? 'text-black bg-neutral-300'
                             : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
-                        Black Cards
+                        <span class="flex size-8 items-center justify-center bg-black rounded-full text-white">
+                                {{ blackCards.length }}
+                        </span>
+                        <span>
+                            White Cards
+                        </span>
                     </button>
                 </div>
             </div>
@@ -107,12 +117,12 @@
 
         <section class="fixed bottom-[max(env(safe-area-inset-bottom),1.5rem)] z-20">
             <div class="w-full flex flex-row gap-4 max-w-2xl mx-auto">
-                <button class="bg-white border-2 border-black p-3 rounded-full" @click="activeTab === 'page1' ? newWhiteCard() : newBlackCard()">
+                <Button variant="secondary" size="md" @click="activeTab === 'page1' ? newWhiteCard() : newBlackCard()" class="rounded-full">
                     <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none">
                         <path d="M12 5V19" stroke="black" stroke-width="2" stroke-linecap="round" />
                         <path d="M5 12H19" stroke="black" stroke-width="2" stroke-linecap="round" />
                     </svg>
-                </button>
+                </Button>
                 <Button v-if="hasUnsavedChanges" variant="tertiary" size="md" @click="saveCollection()">
                     Save
                 </Button>
