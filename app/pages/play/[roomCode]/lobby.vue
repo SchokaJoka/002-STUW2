@@ -236,7 +236,7 @@ const dev2gaps = ref(false);
     </header>
 
     <!-- Main Content -->
-    <main class="relative flex flex-col items-center justify-start min-h-svh w-full max-w-2xl px-8 pb-8 pt-4 gap-4">
+    <main class="relative flex flex-col items-center justify-start min-h-[calc(1.5*100svh)] w-full max-w-2xl px-8 pb-8 pt-4 gap-4">
       <div class="h-[33px] w-full mb-4"></div>
       <p class="text-black text-4xl font-normal">Create Game</p>
 
@@ -262,7 +262,7 @@ const dev2gaps = ref(false);
     <!-- Footer -->
     <!-- Player List, Room Info -->
     <main
-      class="fixed bottom-[max(env(safe-area-inset-bottom),0px)] flex flex-col items-center justify-between min-h-lg w-full max-w-2xl px-8 pb-4 pt-1 gap-2 bg-white">
+      class="fixed bottom-[env(safe-area-inset-bottom,0px)] flex flex-col items-center justify-between min-h-lg w-full max-w-2xl px-8 pb-4 pt-1 gap-2">
 
       <div v-if="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
         {{ errorMessage }}
@@ -271,7 +271,7 @@ const dev2gaps = ref(false);
       <section class="flex flex-row w-full overflow-x-auto gap-4">
         <div v-for="player in players" :key="player.user_id"
           class="flex flex-col gap-2 items-center transition-all border-black text-black">
-          <div class="flex items-center justify-center size-12 rounded-full border-2 transition-all" :class="gameMasterId === player.user_id
+          <div class="flex items-center justify-center size-12 rounded-full border-2 bg-white transition-all" :class="gameMasterId === player.user_id
               ? 'border-black'
               : 'border-black'
               ">
