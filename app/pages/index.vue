@@ -1,6 +1,6 @@
 <template>
   <main class="w-full flex items-center justify-center">
-    <header class="fixed top-0 w-full flex items-center justify-start p-4 z-40">
+    <header ref="headerEl" class="fixed top-0 w-full flex items-center justify-start p-4 z-40">
       <div class="cursor-pointer" @click="handleMenuToggle">
         <svg xmlns="http://www.w3.org/2000/svg" width="29" height="24" viewBox="0 0 29 24"
           class="stroke-black stroke-[4]">
@@ -79,10 +79,12 @@
       </aside>
     </div>
 
-    <section class="relative flex flex-col items-center justify-center min-h-lvh w-full max-w-2xl p-8 gap-8">
+    <!-- Main Content -->
+    <section
+      class="relative flex flex-col items-center justify-center h-full w-full max-w-2xl p-16 gap-16 mt-[var(--home-header-h)]">
       <!-- Welcome -->
-      <div class="flex flex-col items-center justify-center h-svh w-full p-8 gap-8">
-        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMQ2WRAgIAPsL-B8td9dFYqqNAsYfU1NgZ3Q&s" alt="">
+      <div class="flex flex-col items-center justify-center h-[calc(100lvh-var(--home-header-h)-4rem)] w-full gap-8">
+        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMQ2WRAgIAPsL-B8td9dFYqqNAsYfU1NgZ3Q&s" alt="Waldo haha">
         <h1 class="w-full h-fit text-black text-5xl font-normal">
           Cards against Waldo *uwu*
         </h1>
@@ -123,6 +125,8 @@ const route = useRoute();
 
 const isJoiningGame = ref(false);
 const isMenuOpen = ref(false);
+
+const { headerEl } = useHeaderHeight("--home-header-h");
 
 // Guest name editing
 const editingGuestName = ref(false);
