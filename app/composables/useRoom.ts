@@ -26,6 +26,13 @@ export function useRoom() {
     "collectionCards",
     () => [],
   );
+  
+  const selectedGameMode = useState<"classic" | "extended" | "creative">(
+    "selectedGameMode",
+    () => "classic",
+  );
+
+  // FUNCTIONS
 
   async function getRoomIdByCode(roomCode: string): Promise<string> {
     const { data } = await supabase
@@ -224,7 +231,7 @@ export function useRoom() {
 
   async function setupBroadcastListeners(roomId: string, playerId: string) {
     // Validation
-    if (!gameChannel.value && !user.value) {
+    if (gameChannel.value === null && !user.value) {
       console.error("[useRoom.ts] Game channel or user not initialized.");
       return;
     }
@@ -238,6 +245,12 @@ export function useRoom() {
         .filter(Boolean)
         .sort((a: any, b: any) => (a?.joined_at ?? 0) - (b?.joined_at ?? 0));
     });
+
+    gameChannel.value.on("broadcast", { event: "lobby_settings_updated" }, async (payload) => {
+      console.log("[BROADCAST] lobby_settings_updated", payload);
+      selectedGameMode.value = payload?.payload?.selectedGameMode || "classic";
+    });
+
 
     // BROADCAST LISTENERS
     // cards_dealt

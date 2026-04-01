@@ -260,100 +260,28 @@ const canSubmitWhiteCards = computed(() => {
 });
 
 async function submitCards() {
-    if (isCzar.value || !roomId.value || !playerId.value) return;
-    if (!canSubmitWhiteCards.value) return;
     if (isSubmittingWhiteCards.value) return;
-
     isSubmittingWhiteCards.value = true;
 
     try {
-        const submittedTexts = myChosenWhiteCards.value.map((text) => text.trim());
-
-        const { data: memberRow, error: memberFetchError } = await supabase
-            .from("room_members")
-            .select("metadata")
-            .eq("room_id", roomId.value)
-            .eq("user_id", playerId.value)
-            .single();
-
-        if (memberFetchError) throw memberFetchError;
-
-        const updatedMemberMetadata = {
-            ...(memberRow?.metadata ?? {}),
-            submitted_cards: submittedTexts,
-        };
-
-        const { error: memberUpdateError } = await supabase
-            .from("room_members")
-            .update({ metadata: updatedMemberMetadata, status: "submitted" })
-            .eq("room_id", roomId.value)
-            .eq("user_id", playerId.value);
-
-        if (memberUpdateError) throw memberUpdateError;
-
-        const { data: room, error: roomErr } = await supabase
-            .from("rooms")
-            .select("metadata")
-            .eq("id", roomId.value)
-            .single();
-
-        if (!roomErr) {
-            const playedWhite = (room?.metadata?.played_white_cards ?? []) as string[];
-            await supabase
-                .from("rooms")
-                .update({
-                    metadata: {
-                        ...(room?.metadata ?? {}),
-                        played_white_cards: [...playedWhite, ...submittedTexts],
-                    },
-                })
-                .eq("id", roomId.value);
+        const { data, error } = await supabase.functions.invoke(
+            "submit_white_cards",
+            {
+                method: "POST",
+                body: {
+                    czar_id: czarId.value,
+                    user_id: playerId.value,
+                    room_id: roomId.value,
+                    submitted_cards: myChosenWhiteCards.value.map((text) => text.trim()),
+                },
+            },
+        );
+        if (error) {
+            console.error("[EDGE] Error submitting white cards:", error);
+        } else {
+            isWhiteCardsSubmitted.value = true;
+            console.log("[EDGE] success submit_white_cards", data);
         }
-
-        const czarIdFromRoom = room?.metadata?.czar_id ?? czarId.value;
-
-        const { count: totalNonCzar, error: totalErr } = await supabase
-            .from("room_members")
-            .select("user_id", { count: "exact", head: true })
-            .eq("room_id", roomId.value)
-            .neq("user_id", czarIdFromRoom)
-            .eq("is_active", true);
-
-        if (totalErr) throw totalErr;
-
-        const { count: submittedNonCzar, error: submittedErr } = await supabase
-            .from("room_members")
-            .select("user_id", { count: "exact", head: true })
-            .eq("room_id", roomId.value)
-            .neq("user_id", czarIdFromRoom)
-            .eq("is_active", true)
-            .eq("status", "submitted");
-
-        if (submittedErr) throw submittedErr;
-
-        const totalCount = Number(totalNonCzar ?? 0);
-        const submittedCount = Number(submittedNonCzar ?? 0);
-
-        if (totalCount > 0 && submittedCount === totalCount) {
-            await supabase
-                .from("rooms")
-                .update({
-                    metadata: {
-                        ...(room?.metadata ?? {}),
-                        round_status: "round_submitted",
-                    },
-                })
-                .eq("id", roomId.value);
-            gameChannel.value?.send({
-                type: "broadcast",
-                event: "round_submitted",
-                payload: { roomId: roomId.value },
-            });
-        }
-
-        isWhiteCardsSubmitted.value = true;
-    } catch (error) {
-        console.error("Error submitting white cards:", error);
     } finally {
         isSubmittingWhiteCards.value = false;
     }
@@ -602,9 +530,11 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
 
 <template>
     <main class="flex flex-col items-center w-full min-h-dvh">
+        <!-- header -->
         <header ref="headerEl" class="fixed pt-[env(safe-area-inset-top),0px)] w-full flex flex-col p-4 gap-2 z-40">
             <div class="w-full flex flex-row items-stretch justify-between gap-2">
                 <div class="flex flex-row w-full items-center justify-start overflow-x-auto gap-2">
+                    <!-- player list -->
                     <div v-for="player in players" :key="player.user_id" class="flex flex-col items-center gap-1">
                         <div class="flex items-center justify-center size-12 rounded-full border-2 transition-all"
                             :class="czarId === player.user_id
@@ -618,14 +548,16 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                         </div>
                         <span class="text-xs font-semibold transition">{{ player.user_id === playerId ? 'You' :
                             player.user_name
-                            }}</span>
+                        }}</span>
                     </div>
                 </div>
+                <!-- action leave -->
                 <Button @click="deletePlayerFromRoomTable(roomId, playerId)" variant="primary" size="md"
                     class="rounded-xl">
                     Leave
                 </Button>
             </div>
+            <!-- round status message -->
             <div class="w-full flex flex-row gap-2">
                 <div class="w-full text-center font-medium text-md">
                     {{ roundStatusMessage }}
@@ -633,10 +565,13 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
             </div>
         </header>
 
+        <!-- game section -->
         <section name="game-section" v-if="gameStarted"
             class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex items-center gap-4 overflow-y-visible py-4"
             :class="isCzar ? 'flex-col-reverse justify-start' : 'flex-col justify-start'">
-            <TransitionGroup name="fade" mode="out-in">
+            <TransitionGroup name="fade">
+
+                <!-- black card -->
                 <div v-if="blackCard"
                     class="w-full max-h-[40dvh] max-w-[55dvw] min-w-[16rem] md:max-w-md h-96 rounded-xl bg-black p-6 pb-12 text-lg font-bold text-white">
                     <div>
@@ -647,6 +582,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                     </div>
                 </div>
 
+                <!-- create black card -->
                 <div v-if="isCzar && roundStatus === 'round_start' && !blackCard" class="w-full max-w-2xl">
                     <div class="w-full flex flex-col gap-2 bg-black p-5 rounded-lg border border-[3px] border-white">
                         <div v-for="(part, index) in blackCardDraftParts" :key="index"
@@ -669,6 +605,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                     </div>
                 </div>
 
+                <!-- white cards input -->
                 <div v-if="!isCzar && roundStatus === 'round_start' && !isWhiteCardsSubmitted && blackCard"
                     class="w-full max-w-2xl flex flex-col gap-3">
                     <div v-for="(_, index) in numberOfCardsToPlay" :key="`white-input-${index}`" class="w-full">
@@ -677,6 +614,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                     </div>
                 </div>
 
+                <!-- judging area -->
                 <div v-if="roundStatus === 'round_submitted'" class="w-full h-full overflow-y-visible z-10">
                     <MyCarousel :items="judgingCarouselItems" :lookup-cards="judgingLookupCards"
                         :selected-ids="selectedJudgingCardIds" selected-class="selected-judging"

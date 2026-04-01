@@ -82,8 +82,9 @@
     <section class="relative flex flex-col items-center justify-center min-h-lvh w-full max-w-2xl p-8 gap-8">
       <!-- Welcome -->
       <div class="flex flex-col items-center justify-center h-svh w-full p-8 gap-8">
+        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMQ2WRAgIAPsL-B8td9dFYqqNAsYfU1NgZ3Q&s" alt="">
         <h1 class="w-full h-fit text-black text-5xl font-normal">
-          Der Kampf gegen das Bünzlitum
+          Cards against Waldo *uwu*
         </h1>
         <Button @click="createGame()" variant="primary" size="lg" block class="rounded-xl">Create Game</Button>
         <Button @click="joinGame()" variant="primary" size="lg" block class="rounded-xl">Join Game</Button>

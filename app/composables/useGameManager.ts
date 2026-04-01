@@ -48,14 +48,110 @@ export function useGameManager() {
     roomId: string,
     roomCode: string,
     dev2gaps: boolean,
-    collectionId: string,
-    mode: "classic" | "extended",
+    collectionId: string | null = null,
+    mode: "classic" | "extended" | "creative",
   ) {
     console.log("[GameManager] initializeGame called with:", {
       roomId,
       roomCode,
       dev2gaps,
       collectionId,
+      mode,
+    });
+
+    if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
+      if (players.value.length < 2)
+        //display error message on html page that at least 2 players are required
+        errorMessage.value =
+          "At least 2 players are required to start the game.";
+      return;
+    }
+
+    if (isStartingGame.value) return;
+    isStartingGame.value = true;
+
+    console.log("[GameManager] Broadcasting navigate_to_game");
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "navigate_to_game",
+      payload: { roomCode, mode },
+    });
+
+    if (mode !== "creative") {
+      console.log("[GameManager] Broadcasting game_initialize");
+      gameChannel.value.send({
+        type: "broadcast",
+        event: "game_initialize",
+        payload: { set_id: collectionId },
+      });
+    }
+
+    console.log("[GameManager] Broadcasting game_start");
+    gameChannel.value.send({
+      type: "broadcast",
+      event: "game_start",
+    });
+
+    if (mode !== "creative") {
+      console.log("[GameManager] Invoke initialize_game");
+      const { data: edgeInitializeData } = await supabase.functions.invoke(
+        "initialize_game",
+        {
+          method: "POST",
+          body: {
+            set_id: collectionId,
+            room_id: roomId,
+            cardsPerPlayer: 8,
+            dev2gaps: dev2gaps,
+            mode: mode
+          },
+        },
+      );
+
+      if (!edgeInitializeData) {
+        console.error("Failed to assign hand cards.");
+        return;
+      }
+    } else {
+      console.log("[GameManager] Invoke initialize_game");
+      const { data: edgeInitializeData } = await supabase.functions.invoke(
+        "initialize_game",
+        {
+          method: "POST",
+          body: {
+            set_id: null,
+            room_id: roomId,
+            cardsPerPlayer: null,
+            dev2gaps: dev2gaps,
+            mode: mode
+          },
+        },
+      );
+
+      if (!edgeInitializeData) {
+        console.error("Failed to assign hand cards.");
+        return;
+      }
+    }
+
+    console.log("[GameManager] gameChannel:", gameChannel.value);
+
+    if (mode !== "creative") {
+      console.log("[GameManager] Broadcasting cards_dealt");
+      gameChannel.value.send({
+        type: "broadcast",
+        event: "cards_dealt",
+        payload: { roomId },
+      });
+    }
+
+    isStartingGame.value = false;
+  }
+
+  async function initializeCreativeGame(roomId: string, roomCode: string) {
+    console.log("[GameManager] initializeGame called with:", {
+      roomId,
+      roomCode,
     });
 
     if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
@@ -116,83 +212,6 @@ export function useGameManager() {
       event: "cards_dealt",
       payload: { roomId },
     });
-
-    isStartingGame.value = false;
-  }
-
-  async function initializeCreativeGame(roomId: string, roomCode: string) {
-    if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
-      if (players.value.length < 2) {
-        errorMessage.value =
-          "At least 2 players are required to start the game.";
-      }
-      return;
-    }
-
-    if (isStartingGame.value) return;
-    isStartingGame.value = true;
-
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "navigate_to_game",
-      payload: { roomCode, mode: "creative" },
-    });
-
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "game_start",
-    });
-
-    let czarId = players.value[0]?.user_id;
-    if (!czarId) {
-      const { data: members } = await supabase
-        .from("room_members")
-        .select("user_id")
-        .eq("room_id", roomId)
-        .order("joined_at", { ascending: true });
-      czarId = members?.[0]?.user_id ?? null;
-    }
-
-    if (!czarId) {
-      console.error("[GameManager] Failed to determine czar for creative mode");
-      isStartingGame.value = false;
-      return;
-    }
-
-    const { data: room, error: roomErr } = await supabase
-      .from("rooms")
-      .select("metadata")
-      .eq("id", roomId)
-      .single();
-
-    if (roomErr) {
-      console.error("[GameManager] Failed to load room metadata", roomErr);
-      isStartingGame.value = false;
-      return;
-    }
-
-    const nextMetadata = {
-      ...(room?.metadata ?? {}),
-      mode: "creative",
-      set_id: null,
-      handSize: 1,
-      round: 1,
-      round_status: "round_start",
-      czar_id: czarId,
-      black_card: null,
-      current_winner: null,
-      played_black_cards: room?.metadata?.played_black_cards ?? [],
-      played_white_cards: room?.metadata?.played_white_cards ?? [],
-    };
-
-    const { error: updateErr } = await supabase
-      .from("rooms")
-      .update({ metadata: nextMetadata })
-      .eq("id", roomId);
-
-    if (updateErr) {
-      console.error("[GameManager] Failed to init creative game", updateErr);
-    }
 
     isStartingGame.value = false;
   }

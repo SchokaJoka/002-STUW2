@@ -16,11 +16,37 @@ const isGameMaster = useState<boolean>("isGameMaster", () => false);
 
 const roomCode = ref<string>("");
 
+const gameModes: Array<{
+  value: "classic" | "extended" | "creative";
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "classic",
+    title: "Classic",
+    description: "The epic game just as you know it.",
+  },
+  {
+    value: "extended",
+    title: "Extended",
+    description: "Spice up your usual game with some jokers.",
+  },
+  {
+    value: "creative",
+    title: "Creative Mode",
+    description: "Write ALL your own cards. Yes, even the black ones.",
+  },
+];
+
 const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
 
 const collections = ref<any[]>([]);
 const selectedCollectionId = ref<string | null>(null);
+const selectedGameMode = useState<"classic" | "extended" | "creative">(
+    "selectedGameMode",
+    () => "classic",
+);
 
 // ============================================================
 
@@ -47,7 +73,6 @@ const {
   errorMessage,
   // Functions
   initializeGame,
-  initializeCreativeGame,
 } = useGameManager();
 
 const { getCardCollections } = useCards();
@@ -70,7 +95,7 @@ async function startGame() {
     return;
   }
   if (selectedGameMode.value === "creative") {
-    await initializeCreativeGame(roomId.value, roomCode.value);
+    await initializeGame(roomId.value, roomCode.value, dev2gaps.value, null, selectedGameMode.value);
   } else {
     if (!selectedCollectionId.value) {
       errorMessage.value = "Please select a card set to start.";
@@ -82,10 +107,26 @@ async function startGame() {
       roomCode.value,
       dev2gaps.value,
       selectedCollectionId.value,
-      selectedGameMode.value === "extended" ? "extended" : "classic",
+      selectedGameMode.value,
     );
   }
   navigateTo(`/play/${roomCode.value}/game/${selectedGameMode.value}`);
+}
+
+function setLobbySettings(newVal: "classic" | "extended" | "creative") {
+  selectedGameMode.value = newVal;
+
+  gameChannel.value?.send({
+    type: "broadcast",
+    event: "lobby_settings_updated",
+    payload: {
+      selectedGameMode: newVal,
+    },
+  });
+}
+
+function setSelectedCollection(collectionId: string) {
+  selectedCollectionId.value = collectionId;
 }
 // ============================================================
 
@@ -178,7 +219,6 @@ async function copyRoomCode() {
 // DEV DEBUGGING
 // ============================================================
 const dev2gaps = ref(false);
-const selectedGameMode = ref<"classic" | "extended" | "creative">("classic");
 // ============================================================
 </script>
 
@@ -201,75 +241,21 @@ const selectedGameMode = ref<"classic" | "extended" | "creative">("classic");
       <p class="text-black text-4xl font-normal">Create Game</p>
 
       <!-- Game Mode Selection -->
-      <div @click="isGameMaster && (selectedGameMode = 'classic')" :class="[
-        'w-full rounded-lg flex flex-row items-stretch justify-between p-5 transition-all',
-        selectedGameMode === 'classic'
-          ? 'bg-black text-white border-2 border-black'
-          : 'bg-neutral-200 text-black hover:bg-neutral-300',
-        !isGameMaster && 'cursor-not-allowed opacity-50',
-        isGameMaster && 'cursor-pointer'
-      ]">
-        <div class="flex flex-col gap-1 w-full">
-          <p class="text-3xl font-semibold">Classic</p>
-          <p class="text-sm font-normal">The epic game just as you know it.</p>
-        </div>
-        <div class="flex justify-center items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="23" viewBox="0 0 12 23" fill="none">
-            <path fill-rule="evenodd" clip-rule="evenodd"
-              d="M8.14441 11.2896L1.49204 4.63721L2.82233 3.30692L10.1398 10.6244C10.3162 10.8009 10.4153 11.0401 10.4153 11.2896C10.4153 11.539 10.3162 11.7783 10.1398 11.9547L2.82233 19.2722L1.49204 17.9419L8.14441 11.2896Z"
-              :fill="selectedGameMode === 'classic' ? 'white' : 'black'" />
-          </svg>
-        </div>
-      </div>
-      <div @click="isGameMaster && (selectedGameMode = 'extended')" :class="[
-        'w-full rounded-lg flex flex-row items-stretch justify-between p-5 transition-all',
-        selectedGameMode === 'extended'
-          ? 'bg-black text-white border-2 border-black'
-          : 'bg-neutral-200 text-black hover:bg-neutral-300',
-        !isGameMaster && 'cursor-not-allowed opacity-50',
-        isGameMaster && 'cursor-pointer'
-      ]">
-        <div class="flex flex-col gap-1 w-full">
-          <p class="text-3xl font-semibold">Extended</p>
-          <p class="text-sm font-normal">Spice up your usual game with some jokers.</p>
-        </div>
-        <div class="flex justify-center items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="23" viewBox="0 0 12 23" fill="none">
-            <path fill-rule="evenodd" clip-rule="evenodd"
-              d="M8.14441 11.2896L1.49204 4.63721L2.82233 3.30692L10.1398 10.6244C10.3162 10.8009 10.4153 11.0401 10.4153 11.2896C10.4153 11.539 10.3162 11.7783 10.1398 11.9547L2.82233 19.2722L1.49204 17.9419L8.14441 11.2896Z"
-              :fill="selectedGameMode === 'extended' ? 'white' : 'black'" />
-          </svg>
-        </div>
-      </div>
-      <div @click="isGameMaster && (selectedGameMode = 'creative')" :class="[
-        'w-full rounded-lg flex flex-row items-stretch justify-between p-5 transition-all',
-        selectedGameMode === 'creative'
-          ? 'bg-black text-white border-2 border-black'
-          : 'bg-neutral-200 text-black hover:bg-neutral-300',
-        !isGameMaster && 'cursor-not-allowed opacity-50',
-        isGameMaster && 'cursor-pointer'
-      ]">
-        <div class="flex flex-col gap-1 w-full">
-          <p class="text-3xl font-semibold">Creative Mode</p>
-          <p class="text-sm font-normal">Write ALL your own cards. Yes, even the black ones.</p>
-        </div>
-        <div class="flex justify-center items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="23" viewBox="0 0 12 23" fill="none">
-            <path fill-rule="evenodd" clip-rule="evenodd"
-              d="M8.14441 11.2896L1.49204 4.63721L2.82233 3.30692L10.1398 10.6244C10.3162 10.8009 10.4153 11.0401 10.4153 11.2896C10.4153 11.539 10.3162 11.7783 10.1398 11.9547L2.82233 19.2722L1.49204 17.9419L8.14441 11.2896Z"
-              :fill="selectedGameMode === 'creative' ? 'white' : 'black'" />
-          </svg>
-        </div>
-      </div>
-
-      <!-- Collection Selection -->
-      <div v-if="selectedGameMode !== 'creative'" class="w-full flex flex-col gap-4">
-        <div v-for="collection in collections" :key="collection.id"
-          class="w-full flex flex-col gap-2 p-4 bg-neutral-200 rounded-lg hover:cursor-pointer hover:bg-neutral-300"
-          @click="() => { selectedCollectionId = collection.id }"
-          :class="(collection.id === selectedCollectionId) ? 'border-4 border-blue-500' : ''">
-          <p>{{ collection.name }}</p>
-        </div>
+      <div class="flex flex-col gap-2 w-full">
+        <GameModeSelectionCard
+          v-for="mode in gameModes"
+          :key="mode.value"
+          :mode="mode.value"
+          :title="mode.title"
+          :description="mode.description"
+          :selected-mode="selectedGameMode"
+          :can-select="isGameMaster"
+          :collections="collections"
+          :selected-collection-id="selectedCollectionId"
+          @select="setLobbySettings"
+          @select-collection="setSelectedCollection"
+          :show-arrow-icon="mode.value !== 'creative'"
+        />
       </div>
     </main>
 
@@ -285,8 +271,16 @@ const selectedGameMode = ref<"classic" | "extended" | "creative">("classic");
       <section class="flex flex-row w-full overflow-x-auto gap-4">
         <div v-for="player in players" :key="player.user_id"
           class="flex flex-col gap-2 items-center transition-all border-black text-black">
-          <div class="size-12 rounded-full border-[3px] border-current bg-gray-500"></div>
-          <p class="text-xs">{{ player.user_name }}</p>
+          <div class="flex items-center justify-center size-12 rounded-full border-2 transition-all" :class="gameMasterId === player.user_id
+              ? 'border-black'
+              : 'border-black'
+              ">
+              <img src="https://placehold.co/40" alt="Player avatar" class="size-10 rounded-full object-cover" />
+
+            </div>
+            <span class="text-xs font-semibold transition">
+              {{ player.user_id === playerId ? 'You' : player.user_name }}
+            </span>
         </div>
       </section>
 

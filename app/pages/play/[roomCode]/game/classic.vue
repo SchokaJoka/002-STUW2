@@ -559,8 +559,9 @@ const dev2gaps = ref(false);
               <img src="https://placehold.co/40" alt="Player avatar" class="size-10 rounded-full object-cover" />
 
             </div>
-            <span class="text-xs font-semibold transition">{{ player.user_id === playerId ? 'You' : player.user_name
-              }}</span>
+            <span class="text-xs font-semibold transition">
+              {{ player.user_id === playerId ? 'You' : player.user_name }}
+            </span>
           </div>
         </div>
         <Button @click="deletePlayerFromRoomTable(roomId, playerId)" variant="primary" size="md"
