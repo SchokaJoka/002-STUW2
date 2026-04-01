@@ -142,6 +142,7 @@ onMounted(async () => {
             .from("collections")
             .select("*")
             .eq("user_id", userId)
+            .order("updated_at", { ascending: false })
         : Promise.resolve({ data: [], error: null });
 
     const publicCollectionsPromise = supabase

@@ -65,7 +65,7 @@ function handleCollectionSelect(collectionId: string) {
                     name="collection"
                     appear
                     tag="div"
-                    class="relative w-full flex flex-col gap-2"
+                    class="relative w-full flex flex-col gap-2 max-h-32 overflow-y-auto pr-1"
                 >
                 <div v-for="(collection, index) in collections" :key="collection.id"
                     class="w-full flex flex-row items-center justify-start gap-3 px-4 py-1 rounded-full bg-white text-black transition-colors duration-250 ease-out"

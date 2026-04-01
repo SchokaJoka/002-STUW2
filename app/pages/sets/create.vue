@@ -181,6 +181,8 @@ async function saveCollection() {
         .insert({
             name: collectionName.value,
             user_id: user.value?.id || user.value?.sub,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
         })
         .select("id")
         .single();

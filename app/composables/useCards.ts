@@ -16,7 +16,7 @@ export const useCards = () => {
     const { data, error } = await supabase
       .from("collections")
       .select("*")
-      .order("name");
+      .order("updated_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching card sets:", error);
