@@ -86,7 +86,7 @@
       <!-- Welcome -->
       <div class="flex flex-col items-center justify-center w-full gap-8"
         :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
-        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMQ2WRAgIAPsL-B8td9dFYqqNAsYfU1NgZ3Q&s" alt="Waldo haha">
+        <img class="rounded-2xl size-64" src="https://www.pngkey.com/png/detail/929-9298678_wally-wheres-waldo-face.png" alt="Waldo haha">
         <h1 class="w-full h-fit text-black text-5xl font-normal">
           Cards against Waldo *uwu*
         </h1>
