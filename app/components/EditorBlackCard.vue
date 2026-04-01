@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import type { Tables } from "../../../types/database.types";
+import type { Tables } from "../../types/database.types";
 
 type Card = Tables<"cards">;
 
 const props = defineProps<{
     card: Card;
+    editorId: string;
+    canEdit: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update', data: { text: string; number_of_gaps: number }): void;
+    (e: 'edit-start', editorId: string): void;
+    (e: 'edit-end', editorId: string): void;
     (e: 'delete'): void;
 }>();
 
@@ -40,7 +44,9 @@ const getTextParts = (text: string): any[] => {
 };
 
 function startEdit() {
+    if (!props.canEdit || isEditing.value) return;
     isEditing.value = true;
+    emit('edit-start', props.editorId);
     currentBlackCardText.value = getTextParts(props.card.text || "");
 }
 
@@ -57,6 +63,8 @@ function deleteLast() {
 }
 
 function save() {
+    if (!isEditing.value) return;
+
     if (currentBlackCardText.value.every((part: any) => part.text.trim() === "")) {
         alert("Card text cannot be empty.");
         return;
@@ -66,44 +74,50 @@ function save() {
         emit('update', { text: newText, number_of_gaps: numberOfGaps });
     }
     isEditing.value = false;
+    emit('edit-end', props.editorId);
 }
 </script>
 
 <template>
-    <div class="relative w-full flex flex-row items-center justify-between gap-4 bg-black p-5 rounded-lg border border-[3px] border-white">
-        <div v-if="!isEditing" class="w-full flex flex-row flex-wrap items-center gap-2 text-white text-xl font-semibold">
-            <template v-for="(part, index) in getTextParts(card.text || '')" :key="index">
-                <div
-                    v-if="part.isGap"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-md bg-white text-black text-sm font-semibold tracking-wider"
-                >
-                    ___
-                </div>
-                <span v-else>{{ part.text }}</span>
-            </template>
-        </div>
-        <div v-else class="w-full flex flex-col gap-2">
-            <div v-for="part, index in currentBlackCardText" :key="index" class="w-full flex flex-row gap-4">
-                <div
-                    v-if="part.isGap"
-                    class="inline-flex items-center justify-center px-4 py-1 border border-white border-2 rounded-md bg-white/10 text-white text-sm font-semibold tracking-wide"
-                >
-                    GAP
-                </div>
-                <input v-else type="text" v-model="part.text" class="flex-1 bg-white text-black px-2 py-1 rounded" />
+    <div class="relative w-full flex flex-row items-center justify-between gap-4 bg-black p-5 rounded-lg border border-[3px] border-white transition-all">
+        <transition name="edit-fade" mode="out-in">
+            <div v-if="!isEditing" class="w-full flex flex-row flex-wrap items-center gap-2 text-white text-xl font-semibold">
+                <template v-for="(part, index) in getTextParts(card.text || '')" :key="index">
+                    <div
+                        v-if="part.isGap"
+                        class="inline-flex items-center justify-center px-4 py-1 rounded-md bg-white text-black text-sm font-semibold tracking-wider"
+                    >
+                        ___
+                    </div>
+                    <span v-else>{{ part.text }}</span>
+                </template>
             </div>
-            <div class="w-full flex flex-row gap-2">
-                <Button v-if="!currentBlackCardText[currentBlackCardText.length - 1]?.isGap" @click="insertGap()" variant="primary"
-                    size="sm" block class="rounded-xl">Insert Gap</Button>
-                <Button v-if="currentBlackCardText[currentBlackCardText.length - 1]?.isGap" @click="insertText()" variant="primary"
-                    size="sm" block class="rounded-xl">Insert Text</Button>
-                <Button v-if="currentBlackCardText.length > 1" @click="deleteLast()" variant="primary" size="sm" block
-                    class="rounded-xl">Delete</Button>
+            <div v-else class="w-full flex flex-col gap-2">
+                <div v-for="part, index in currentBlackCardText" :key="index" class="w-full flex flex-row gap-4">
+                    <div
+                        v-if="part.isGap"
+                        class="inline-flex items-center justify-center px-4 py-1 border border-white border-2 rounded-md bg-white/10 text-white text-sm font-semibold tracking-wide"
+                    >
+                        GAP
+                    </div>
+                    <input v-else type="text" v-model="part.text" class="flex-1 bg-white text-black px-2 py-1 rounded" />
+                </div>
+                <div class="w-full flex flex-row gap-2">
+                    <Button v-if="!currentBlackCardText[currentBlackCardText.length - 1]?.isGap" @click="insertGap()" variant="primary"
+                        size="sm" block class="rounded-xl">Insert Gap</Button>
+                    <Button v-if="currentBlackCardText[currentBlackCardText.length - 1]?.isGap" @click="insertText()" variant="primary"
+                        size="sm" block class="rounded-xl">Insert Text</Button>
+                    <Button v-if="currentBlackCardText.length > 1" @click="deleteLast()" variant="primary" size="sm" block
+                        class="rounded-xl">Delete</Button>
+                </div>
             </div>
-        </div>
+        </transition>
         <div class="flex flex-row gap-2 items-center">
-            <div class="hover:cursor-pointer" @click="isEditing ? save() : startEdit()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <div class="hover:cursor-pointer" :class="!canEdit && !isEditing ? 'opacity-40 pointer-events-none' : ''" @click="isEditing ? save() : startEdit()">
+                <svg v-if="isEditing" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17L4 12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <g clip-path="url(#clip0_83_1922_black)">
                         <path d="M6 24H0V18M21 9L15 3L18 0L24 6M9 21L3 15L12 6L18 12" fill="white" />
                     </g>
@@ -124,3 +138,16 @@ function save() {
         </div>
     </div>
 </template>
+
+<style scoped>
+.edit-fade-enter-active,
+.edit-fade-leave-active {
+    transition: all 180ms ease;
+}
+
+.edit-fade-enter-from,
+.edit-fade-leave-to {
+    /* opacity: 0; */
+    transform: scale(0.99);
+}
+</style>

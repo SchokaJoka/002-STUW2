@@ -9,7 +9,7 @@
                             stroke="black" stroke-width="2" stroke-linejoin="round" />
                     </svg>
                 </div>
-                <input v-model="collection.name" ref="collectionNameInputRef" type="text" placeholder="new Card-Set" @keyup.enter="$event.target?.blur()" @blur="saveCollectionName(collectionId, collection.name)"
+                <input v-model="collection.name" ref="collectionNameInputRef" type="text" placeholder="new Card-Set" @keyup.enter="($event.target as HTMLInputElement | null)?.blur()" @blur="saveCollectionName(collectionId, collection.name)"
                     class="p-2 w-full text-black text-4xl font-bold"></input>
                 <div class="flex py-2 hover:cursor-pointer" @click="focusInput()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -73,7 +73,11 @@
                                 <div class="flex flex-col gap-4">
                                     <EditorWhiteCard v-for="whiteCard in whiteCards" :key="whiteCard.id"
                                         :card="whiteCard"
+                                        :editor-id="getWhiteEditorId(whiteCard.id)"
+                                        :can-edit="!activeEditorId || activeEditorId === getWhiteEditorId(whiteCard.id)"
                                         @update="(text) => saveUpdate(whiteCard.id, { text, updated_at: new Date().toISOString() })"
+                                        @edit-start="handleEditStart"
+                                        @edit-end="handleEditEnd"
                                         @delete="deleteCard(whiteCard.id, false)" />
                                 </div>
                             </div>
@@ -81,7 +85,11 @@
                                 <div class="flex flex-col gap-4">
                                     <EditorBlackCard v-for="blackCard in blackCards" :key="blackCard.id"
                                         :card="blackCard"
+                                        :editor-id="getBlackEditorId(blackCard.id)"
+                                        :can-edit="!activeEditorId || activeEditorId === getBlackEditorId(blackCard.id)"
                                         @update="(data) => saveUpdate(blackCard.id, { text: data.text, number_of_gaps: data.number_of_gaps, updated_at: new Date().toISOString() })"
+                                        @edit-start="handleEditStart"
+                                        @edit-end="handleEditEnd"
                                         @delete="deleteCard(blackCard.id, true)" />
                                 </div>
                             </div>
@@ -112,6 +120,7 @@ const whiteCards = ref<Cards[]>([]);
 const blackCards = ref<Cards[]>([]);
 const isLoading = ref(true);
 const placeholderRows = [1, 2, 3];
+const activeEditorId = ref<string | null>(null);
 
 const isUpdating = ref(false);
 
@@ -121,6 +130,24 @@ const { headerEl, updateHeaderHeight } = useHeaderHeight("--sets-header-h");
 const focusInput = () => {
     collectionNameInputRef.value?.focus();
 };
+
+function getWhiteEditorId(cardId: string) {
+    return `white-${cardId}`;
+}
+
+function getBlackEditorId(cardId: string) {
+    return `black-${cardId}`;
+}
+
+function handleEditStart(editorId: string) {
+    activeEditorId.value = editorId;
+}
+
+function handleEditEnd(editorId: string) {
+    if (activeEditorId.value === editorId) {
+        activeEditorId.value = null;
+    }
+}
 
 async function saveCollectionName(collectionId: string, name: string) {
     const trimmedName = name.trim();
@@ -183,8 +210,16 @@ async function deleteCard(cardId: string, isBlack: boolean) {
         alert("Failed to delete card.");
     } else {
         if (isBlack) {
+            const editorId = getBlackEditorId(cardId);
+            if (activeEditorId.value === editorId) {
+                activeEditorId.value = null;
+            }
             blackCards.value = blackCards.value.filter(c => c.id !== cardId);
         } else {
+            const editorId = getWhiteEditorId(cardId);
+            if (activeEditorId.value === editorId) {
+                activeEditorId.value = null;
+            }
             whiteCards.value = whiteCards.value.filter(c => c.id !== cardId);
         }
     }
