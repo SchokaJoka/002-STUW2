@@ -262,7 +262,7 @@ const dev2gaps = ref(false);
     <!-- Footer -->
     <!-- Player List, Room Info -->
     <main
-      class="fixed bottom-[max(env(safe-area-inset-bottom),1.5rem)] flex flex-col items-center justify-between min-h-lg w-full max-w-2xl px-8 pb-8 pt-4 gap-4">
+      class="fixed bottom-[max(env(safe-area-inset-bottom),0px)] flex flex-col items-center justify-between min-h-lg w-full max-w-2xl px-8 pb-4 pt-1 gap-2 bg-white">
 
       <div v-if="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
         {{ errorMessage }}
