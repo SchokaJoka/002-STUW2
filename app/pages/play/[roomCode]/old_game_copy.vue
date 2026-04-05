@@ -455,7 +455,7 @@ onUnmounted(async () => {
   if (!isLeaving.value && roomId.value && playerId.value) {
     await markMemberInactive(roomId.value, playerId.value);
   }
-  
+
   if (!isNavigatingWithinRoom.value) {
     await leaveRoomRealtime();
   }
@@ -541,14 +541,14 @@ const dev2gaps = ref(false);
           <div class="w-full flex flex-row items-center justify-start gap-1 transition">
             <span class="text-md font-bold transition">{{
               player.user_name
-            }}</span>
+              }}</span>
             <span v-if="player.user_id === playerId" class="text-md font-normal transition">(you)</span>
           </div>
           <div class="w-full flex flex-row items-center justify-between gap-2 transition">
             <span class="">{{ getPlayerScore(player.user_id) }}</span>
             <span class="text-[0.6rem] uppercase transition">{{
               player.status
-            }}</span>
+              }}</span>
           </div>
         </div>
       </div>

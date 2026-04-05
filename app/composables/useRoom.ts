@@ -260,16 +260,32 @@ export function useRoom() {
     // cards_dealt
     gameChannel.value.on("broadcast", { event: "cards_dealt" }, async () => {
       console.log("[BROADCAST] cards_dealt");
-      const { data, error } = await supabase
-        .from("hand_cards")
-        .select("*")
-        .eq("room_id", roomId)
-        .eq("user_id", playerId);
+      const fetchHand = async () =>
+        await supabase
+          .from("hand_cards")
+          .select("*")
+          .eq("room_id", roomId)
+          .eq("user_id", playerId);
+
+      let { data, error } = await fetchHand();
 
       if (error) {
         console.error("Error fetching hand cards:", error);
         return;
       }
+
+      // If fetch returned empty but we previously had cards, retry once after a short delay
+      if ((data ?? []).length === 0 && (playerHandCards.value ?? []).length > 0) {
+        await new Promise((res) => setTimeout(res, 200));
+        const second = await fetchHand();
+        data = second.data;
+        error = second.error;
+        if (error) {
+          console.error("Error fetching hand cards on retry:", error);
+          return;
+        }
+      }
+
       playerHandCards.value = data ?? [];
       console.log("Updated player hand cards: ", playerHandCards.value);
     });
@@ -296,7 +312,7 @@ export function useRoom() {
     // game_start
     gameChannel.value.on("broadcast", { event: "game_start" }, () => {
       console.log("[BROADCAST] game_start");
-      gameStarted.value = true;
+/*       gameStarted.value = true; */
     });
 
     // round_submitted (fallback refresh)

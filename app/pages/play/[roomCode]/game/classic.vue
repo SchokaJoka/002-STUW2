@@ -82,39 +82,46 @@ watch(gameStarted, async () => {
   console.log("gameStarted changed: ", gameStarted.value);
 });
 
-watch(roundStatus, async (newStatus) => {
-  if (newStatus === "round_start" && roomId.value && playerId.value) {
-    // Load hand cards when round starts
-    const { data: handCardsData, error: handError } = await supabase
-      .from("hand_cards")
-      .select("*")
-      .eq("room_id", roomId.value)
-      .eq("user_id", playerId.value);
+watch(
+  roundStatus,
+  async (newStatus) => {
+    if (newStatus === "round_start" && roomId.value && playerId.value) {
+      try {
+        const { data: handCardsData, error: handError } = await supabase
+          .from("hand_cards")
+          .select("*")
+          .eq("room_id", roomId.value)
+          .eq("user_id", playerId.value);
 
-    if (handError) {
-      console.error("Error fetching hand cards:", handError);
-    } else {
-      playerHandCards.value = (handCardsData ?? []).map((h) => ({
-        ...h,
-        card_id: h.card_id ?? "",
-      }));
-    }
+        if (handError) {
+          console.error("Error fetching hand cards:", handError);
+        } else {
+          if (!playerHandCards.value || playerHandCards.value.length === 0) {
+            playerHandCards.value = handCardsData ?? [];
+          } else {
+            console.log("Skipping watcher playerHandCards update; already populated");
+          }
+        }
 
-    // Load collection cards if not already loaded
-    if (collectionCards.value.length === 0 && gameState.value?.set_id) {
-      const { data: cardsData, error: cardsError } = await supabase
-        .from("cards")
-        .select("*")
-        .eq("collection_id", gameState.value.set_id);
+        if (collectionCards.value.length === 0 && gameState.value?.set_id) {
+          const { data: cardsData, error: cardsError } = await supabase
+            .from("cards")
+            .select("*")
+            .eq("collection_id", gameState.value.set_id);
 
-      if (cardsError) {
-        console.error("Error fetching collection cards:", cardsError);
-      } else {
-        collectionCards.value = cardsData ?? [];
+          if (cardsError) {
+            console.error("Error fetching collection cards:", cardsError);
+          } else {
+            collectionCards.value = cardsData ?? [];
+          }
+        }
+      } catch (e) {
+        console.error("Error in roundStatus watcher:", e);
       }
     }
-  }
-});
+  },
+  { immediate: true },
+);
 
 
 const czarId = computed(() => {
@@ -272,14 +279,15 @@ async function submitCards() {
       if (error) {
         console.error("[EDGE] Error submitting white cards:", error);
       } else {
-        const submittedIds = new Set(myChosenWhiteCards.value.map((c) => c.id));
-        playerHandCards.value = playerHandCards.value.filter(
-          (handCard) => !submittedIds.has(handCard.id),
-        );
-        console.log(
-          "Updated playerHandCards after submission: ",
-          playerHandCards.value,
-        );
+        /* sollte in cards_dealt broadcast in useRoom oder im watcher hier oben schon sein */
+        /*       const submittedIds = new Set(myChosenWhiteCards.value.map((c) => c.id));
+              playerHandCards.value = playerHandCards.value.filter(
+                (handCard) => !submittedIds.has(handCard.id),
+              );
+              console.log(
+                "Updated playerHandCards after submission: ",
+                playerHandCards.value,
+              ); */
         myChosenWhiteCards.value = [];
         whiteCardPickError.value = "";
 
@@ -429,17 +437,19 @@ onMounted(async () => {
         .eq("room_id", roomId.value)
         .eq("user_id", playerId.value);
 
-
       if (error) {
         console.error("Error fetching hand cards:", error);
+      } else {
+        console.log("playerHandCards: ", handCardsData);
+        if (!playerHandCards.value || playerHandCards.value.length === 0) {
+          playerHandCards.value = (handCardsData ?? []).map((h: any) => ({
+            ...h,
+            card_id: h.card_id ?? "",
+          }));
+        } else {
+          console.log("Skipping initial playerHandCards set; already populated");
+        }
       }
-
-      console.log("playerHandCards: ", handCardsData);
-
-      playerHandCards.value = (handCardsData ?? []).map((h: any) => ({
-        ...h,
-        card_id: h.card_id ?? "",
-      }));
 
       if (metadata.set_id) {
         const { data: cardsData } = await supabase
@@ -454,6 +464,7 @@ onMounted(async () => {
 
       blackCard.value = metadata.black_card ?? null;
     }
+
     console.log("Initial game state loaded: ", metadata);
     await handleGameStateChanges(metadata);
   }
@@ -482,9 +493,9 @@ onUnmounted(async () => {
 // OTHER
 // ============================================================
 
-async function startNexRound() {
+/* async function startNexRound() {
   initializeNextRound(roomId.value);
-}
+} */
 
 const roundStatusMessage = computed(() => {
   switch (roundStatus.value) {
@@ -646,7 +657,7 @@ const dev2gaps = ref(false);
               : "Choose"
           }}
         </Button>
-        <Button v-else-if="roundStatus === 'round_end' && isCzar" @click="startNexRound()"
+        <Button v-else-if="roundStatus === 'round_end' && isCzar" @click="initializeNextRound(roomId)"
           :disabled="isStartingNextRound" variant="primary" size="md" class="rounded-xl" key="next-round">
           {{
             isStartingNextRound
