@@ -22,6 +22,7 @@ const isWhiteCardsSubmitted = useState<boolean>("isWhiteCardsSubmitted", () => f
 const isSubmittingWhiteCards = ref<boolean>(false);
 const isChoosingWinner = ref<boolean>(false);
 const whiteCardPickError = ref<string>("");
+const errorMessage = ref<string>("");
 
 const gameStarted = useState<boolean>("gameStarted", () => false);
 
@@ -319,15 +320,21 @@ async function submitCards() {
 // ============================================================
 async function pickWinner(item: any) {
   if (!isCzar.value) return;
-  selectedPlayerSubmission.value = item.submission;
+  selectedPlayerSubmission.value = item?.submission ?? null;
 }
 
 async function resetWinner() {
   selectedPlayerSubmission.value = null;
+  errorMessage.value = "";
 }
 
 async function submitWinner(winnerSubmission: any) {
   if (!isCzar.value) return;
+
+  if (!winnerSubmission) {
+    errorMessage.value = "Please pick a winner submission";
+    return;
+  }
 
   console.log("Selected winner: ", winnerSubmission);
 
@@ -345,6 +352,11 @@ async function submitWinner(winnerSubmission: any) {
     console.log("[EDGE] success select_winner", data);
   }
 }
+
+// clear global error when a selection is made
+watch(selectedPlayerSubmission, (next) => {
+  if (next) errorMessage.value = "";
+});
 // ============================================================
 
 // onMounted, onUnmounted
@@ -581,6 +593,11 @@ const dev2gaps = ref(false);
       <div class="w-full flex flex-row gap-2">
         <div class="w-full text-center font-medium text-md">
           {{ roundStatusMessage }}
+        </div>
+      </div>
+      <div v-if="errorMessage" class="w-full mt-2">
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm text-center">
+          {{ errorMessage }}
         </div>
       </div>
     </header>

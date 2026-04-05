@@ -71,6 +71,7 @@ const {
 const {
   // Variables
   errorMessage,
+  isStartingGame,
   // Functions
   initializeGame,
 } = useGameManager();
@@ -85,6 +86,13 @@ const { getCardCollections } = useCards();
 watch([playerId, gameMasterId], ([newPlayerId, newGameMasterId]) => {
   isGameMaster.value = !!newPlayerId && newGameMasterId === newPlayerId;
 });
+
+// Clear error message when lobby reaches minimum players
+watch(players, (next) => {
+  if ((next ?? []).length >= 2 && errorMessage.value) {
+    errorMessage.value = null;
+  }
+});
 // ============================================================
 
 // FUNCTIONS
@@ -92,6 +100,10 @@ watch([playerId, gameMasterId], ([newPlayerId, newGameMasterId]) => {
 async function startGame() {
   if (!roomId.value || !roomCode.value) {
     console.log("[Lobby] startGame aborted - missing roomId or roomCode");
+    return;
+  }
+  if ((players.value ?? []).length < 2) {
+    errorMessage.value = "At least 2 players are required to start the game.";
     return;
   }
   if (selectedGameMode.value === "creative") {
@@ -337,7 +349,8 @@ const dev2gaps = ref(false);
             </div>
           </Transition>
         </div>
-        <Button v-if="isGameMaster" @click="startGame()" variant="primary" size="md" class="rounded-xl">Start</Button>
+        <Button v-if="isGameMaster" @click="startGame()" :disabled="isStartingGame" variant="primary" size="md"
+          class="rounded-xl">Start</Button>
       </section>
     </footer>
 
