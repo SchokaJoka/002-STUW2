@@ -51,14 +51,6 @@ export function useGameManager() {
     collectionId: string | null = null,
     mode: "classic" | "extended" | "creative",
   ) {
-    console.log("[GameManager] initializeGame called with:", {
-      roomId,
-      roomCode,
-      dev2gaps,
-      collectionId,
-      mode,
-    });
-
     if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
       if (players.value.length < 2)
         //display error message on html page that at least 2 players are required
@@ -70,8 +62,6 @@ export function useGameManager() {
     if (isStartingGame.value) return;
     isStartingGame.value = true;
 
-    // Call server to initialize game state first (authoritative DB writes)
-    console.log("[GameManager] Invoke initialize_game (server-first)");
     try {
       const invokeBody: any = {
         set_id: collectionId,
@@ -102,7 +92,6 @@ export function useGameManager() {
     }
 
     // After server writes complete, broadcast navigation and start events so clients receive authoritative state
-    console.log("[GameManager] Broadcasting navigate_to_game");
     gameChannel.value.send({
       type: "broadcast",
       event: "navigate_to_game",
@@ -110,7 +99,6 @@ export function useGameManager() {
     });
 
     if (mode !== "creative") {
-      console.log("[GameManager] Broadcasting game_initialize");
       gameChannel.value.send({
         type: "broadcast",
         event: "game_initialize",
@@ -118,104 +106,13 @@ export function useGameManager() {
       });
     }
 
-    console.log("[GameManager] Broadcasting game_start");
     gameChannel.value.send({
       type: "broadcast",
       event: "game_start",
     });
-
-    console.log("[GameManager] gameChannel:", gameChannel.value);
-
-    if (mode !== "creative") {
-      console.log("[GameManager] Broadcasting cards_dealt");
-      gameChannel.value.send({
-        type: "broadcast",
-        event: "cards_dealt",
-        payload: { roomId },
-      });
-    }
 
     isStartingGame.value = false;
   }
-
-  /*   async function initializeCreativeGame(roomId: string, roomCode: string) {
-    console.log("[GameManager] initializeGame called with:", {
-      roomId,
-      roomCode,
-    });
-
-    if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
-      if (players.value.length < 2)
-        //display error message on html page that at least 2 players are required
-        errorMessage.value =
-          "At least 2 players are required to start the game.";
-      return;
-    }
-
-    if (isStartingGame.value) return;
-    isStartingGame.value = true;
-
-    // Call server to initialize creative game first (authoritative DB writes)
-    console.log(
-      "[GameManager] Invoke initialize_game for creative (server-first)",
-    );
-    try {
-      const { data: edgeInitializeData, error: invokeError } =
-        await supabase.functions.invoke("initialize_game", {
-          method: "POST",
-          body: {
-            set_id: null,
-            room_id: roomId,
-            cardsPerPlayer: null,
-            dev2gaps: false,
-            mode: "creative",
-          },
-        });
-
-      if (invokeError || !edgeInitializeData) {
-        console.error(
-          "Failed to assign hand cards (initialize_game creative):",
-          invokeError,
-        );
-        isStartingGame.value = false;
-        return;
-      }
-    } catch (e) {
-      console.error("Error invoking initialize_game for creative:", e);
-      isStartingGame.value = false;
-      return;
-    }
-
-    // After DB writes complete, broadcast navigation and start events
-    console.log("[GameManager] Broadcasting navigate_to_game");
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "navigate_to_game",
-      payload: { roomCode, mode: "creative" },
-    });
-
-    console.log("[GameManager] Broadcasting game_initialize");
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "game_initialize",
-      payload: { set_id: null },
-    });
-
-    console.log("[GameManager] Broadcasting game_start");
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "game_start",
-    });
-
-    console.log("[GameManager] Broadcasting cards_dealt");
-    gameChannel.value.send({
-      type: "broadcast",
-      event: "cards_dealt",
-      payload: { roomId },
-    });
-
-    isStartingGame.value = false;
-  } */
 
   // ACTION - Start next round (Czar)
   async function initializeNextRound(roomId: string | null) {
@@ -237,7 +134,6 @@ export function useGameManager() {
       if (error) {
         throw new Error(`Error initializing next round: ${error.message}`);
       } else {
-        console.log("[EDGE] success initialize_next_round", data);
         gameChannel.value.send({
           type: "broadcast",
           event: "cards_dealt",
@@ -252,46 +148,45 @@ export function useGameManager() {
   }
 
   async function handleGameStateChanges(currentMetaData: any) {
-    // Deduplicate identical metadata updates to avoid duplicate handling/logs
-    try {
-      const prev = gameState.value ?? null;
-      if (prev && JSON.stringify(prev) === JSON.stringify(currentMetaData)) {
-        console.debug("[HANDLEGAMESTATECHANGES] Ignoring duplicate metadata update");
-        return;
-      }
-    } catch (e) {
-      // If comparison fails, continue and handle normally
-      console.warn("[HANDLEGAMESTATECHANGES] metadata comparison failed", e);
+    // Avoid processing unchanged metadata
+    const prev = gameState.value ?? null;
+    if (prev && JSON.stringify(prev) === JSON.stringify(currentMetaData)) {
+      console.warn("[HANDLEGAMESTATECHANGES] Ignoring duplicate metadata update");
+      return;
     }
 
-    gameState.value = currentMetaData;
-    console.log("[HANDLEGAMESTATECHANGES] gameState: ", gameState.value);
-    roundStatus.value = currentMetaData.round_status;
-    gameStarted.value = currentMetaData.round_status !== "lobby";
+    const updateIfChanged = <T,>(clientRef: Ref<T>, newValue: T) => {
+      if(clientRef.value !== newValue) {
+        clientRef.value = newValue;
+      }
+    };
+
+    updateIfChanged(blackCard, currentMetaData.black_card ?? null);
+    updateIfChanged(gameState, currentMetaData);
+    updateIfChanged(roundStatus, currentMetaData.round_status);
+    updateIfChanged(gameStarted, currentMetaData.round_status !== "lobby");
 
     switch (currentMetaData.round_status) {
       case "round_start":
-        console.log("Round start case triggered");
         await handleRoundStart(currentMetaData);
         break;
       case "round_submitted":
-        console.log("Round submitted case triggered");
         await handleRoundSubmitted(currentMetaData);
         break;
       case "round_end":
-        console.log("Round end case triggered");
         await handleRoundEnd(currentMetaData);
         break;
       case "lobby":
-        console.warn("In lobby, waiting for game to start...");
         break;
       default:
-        console.warn("Unknown round status:", currentMetaData.round_status);
+        console.error("Unknown round status:", currentMetaData.round_status);
     }
   }
 
   async function handleRoundStart(currentMetaData: any) {
     winnerUserId.value = null;
+    myChosenWhiteCards.value = [];
+    playerSubmissions.value = [];
 
     if (!roomId.value || !playerId.value) return;
 
@@ -300,20 +195,19 @@ export function useGameManager() {
       .from("room_members")
       .select("status")
       .eq("room_id", roomId.value)
-      .eq("user_id", playerId.value);
+      .eq("user_id", playerId.value)
+      .single();
 
     if (error) {
       console.error("Error checking submission status:", error);
       return;
     }
-
-    isWhiteCardsSubmitted.value = data?.[0]?.status === "submitted";
-
-    blackCard.value = currentMetaData.black_card ?? null;
+    isWhiteCardsSubmitted.value = data?.status === "submitted";
   }
 
   async function handleRoundSubmitted(currentMetaData: any) {
     winnerUserId.value = null;
+
 
     const czarId = gameState.value?.czar_id;
     if (!czarId || !roomId.value || !playerId.value) return;
@@ -340,10 +234,8 @@ export function useGameManager() {
       return;
     }
 
-    // isWhiteCardsSubmitted is managed in the component
     isWhiteCardsSubmitted.value = false;
     myChosenWhiteCards.value = [];
-    blackCard.value = currentMetaData.black_card ?? null;
 
     playerSubmissions.value = data ?? [];
     console.log("submittedWhiteCards: ", playerSubmissions.value);
@@ -353,7 +245,6 @@ export function useGameManager() {
     const winnerId = currentMetaData.current_winner?.user_id;
     if (!winnerId) return;
     winnerUserId.value = winnerId;
-    blackCard.value = currentMetaData.black_card ?? null;
     winnerUsername.value =
       players.value.find((p) => p.user_id === winnerId)?.user_name || "";
     winnerCards.value =

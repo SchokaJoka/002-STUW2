@@ -8,7 +8,6 @@ export const useCards = () => {
 
   if (!supabase) {
     console.error("Supabase client not initialized");
-    throw new Error("Supabase client not available");
   }
 
   // Fetch all card setsx

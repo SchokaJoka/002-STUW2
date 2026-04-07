@@ -142,8 +142,6 @@ onMounted(async () => {
   if (route.query.action === "createGame") {
     await createGame();
   }
-
-  console.log("Current user:", user.value);
 });
 
 const openMenu = () => {
@@ -200,7 +198,6 @@ const generateRoomCode = () => {
 };
 
 const createGame = async () => {
-  console.log("Creating a new game room...");
   lobbyError.value = "";
 
   if (!user.value) {
@@ -226,11 +223,7 @@ const createGame = async () => {
     lobbyError.value = "Could not create room in database. Please try again.";
     console.error("Room insert failed:", roomInsertError);
     return;
-  } else {
-    console.log("Room created successfully:", createdRoom);
   }
-
-  console.log("Created room:", createdRoom);
 
   // Navigate the host to the new room
   await navigateToRoom(createdRoom.code);

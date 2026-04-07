@@ -228,9 +228,6 @@ async function deleteCard(cardId: string, isBlack: boolean) {
 }
 
 onMounted(async () => {
-    console.log("Current user:", user.value);
-    const userId = user.value?.id ?? user.value?.sub;
-
     const collectionPromise = supabase
         .from("collections")
         .select("*")
@@ -274,10 +271,6 @@ onMounted(async () => {
         } else {
             blackCards.value = (blackCardResult.data ?? []) as Cards[];
         }
-
-        console.log("Fetched collection: ", collection.value);
-        console.log("Fetched whiteCards: ", whiteCards.value);
-        console.log("Fetched blackCards: ", blackCards.value);
     } finally {
         isLoading.value = false;
     }

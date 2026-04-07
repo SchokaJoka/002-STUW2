@@ -64,14 +64,14 @@ const errorMessage = ref("");
 const successMessage = ref("");
 const loading = ref(false);
 
-// update username with supabase user
+// update username with supabase user 
+// TODO: weiss nicht wie wichtig das ist
 watch(
   user,
   (newUser) => {
     if (newUser && !newUser.is_anonymous) {
       username.value = newUser.user_metadata?.full_name || "";
     } else if (newUser?.is_anonymous || !newUser) {
-      console.log("User is anonymous or not logged in, redirecting to lobby");
       navigateTo(`/`);
     }
   },
@@ -116,6 +116,7 @@ const updateProfile = async () => {
   loading.value = false;
 };
 
+// TODO: sollen wir auf index umleiten?
 const handleLogout = async () => {
   await supabase.auth.signOut();
   // navigateTo(`/`);

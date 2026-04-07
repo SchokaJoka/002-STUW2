@@ -167,9 +167,6 @@ onMounted(async () => {
         } else {
             publicCollections.value = (publicResult.data ?? []) as CardCollections[];
         }
-
-        console.log("Fetched user collections:", userCollections.value);
-        console.log("Fetched public collections:", publicCollections.value);
     } finally {
         isLoading.value = false;
     }

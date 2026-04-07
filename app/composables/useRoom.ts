@@ -66,10 +66,6 @@ export function useRoom() {
     if (!roomId || !playerId) return;
 
     try {
-      console.log(
-        `[Leave] Player ${playerId} attempting to leave room ${roomId}`,
-      );
-
       // 1. Check if leaving player is the owner (game master)
       const { data: room, error: roomError } = await supabase
         .from("rooms")
@@ -82,15 +78,7 @@ export function useRoom() {
         return;
       }
 
-      console.log(
-        `[Leave] Current owner: ${room?.owner}, leaving player: ${playerId}`,
-      );
-
       if (room?.owner === playerId) {
-        console.log(
-          "[Leave] Leaving player IS the owner, finding successor...",
-        );
-
         // 2. Find the next player in join order (oldest member)
         const { data: nextPlayers, error: nextPlayersError } = await supabase
           .from("room_members")
@@ -107,8 +95,6 @@ export function useRoom() {
         const nextPlayer = nextPlayers?.[0];
 
         if (nextPlayer) {
-          console.log(`[Leave] Promoting ${nextPlayer.user_id} to owner`);
-
           const { error: updateError } = await supabase
             .from("rooms")
             .update({
@@ -118,11 +104,7 @@ export function useRoom() {
 
           if (updateError) {
             console.error("[Leave] Error updating owner:", updateError);
-          } else {
-            console.log(`[Owner] Promoted ${nextPlayer.user_id} to owner`);
           }
-        } else {
-          console.log("[Leave] No other players found to promote");
         }
       }
 
@@ -174,15 +156,32 @@ export function useRoom() {
     players.value = [];
   }
 
+  async function loadInitialHandCards(roomId: string, playerId: string) {
+    const { data, error } = await supabase
+      .from("hand_cards")
+      .select("*")
+      .eq("room_id", roomId)
+      .eq("user_id", playerId);
+
+    if (error) {
+      console.error("[useRoom] Error loading initial hand cards:", error);
+      return;
+    }
+
+    playerHandCards.value = data ?? [];
+    console.log("[useRoom] loadInitialHandCards:", playerHandCards.value.length);
+  }
+
   async function enterRoom(
     roomId: string,
     roomCode: string,
     playerId: string,
     initialStatus: string | null,
+    onNavigateToGame?: (payload: any) => void,
   ) {
     await joinRoom(roomCode, playerId);
     await insertPlayerInRoomTable(roomId, playerId);
-    await setupBroadcastListeners(roomId, playerId);
+    await setupBroadcastListeners(roomId, playerId, onNavigateToGame);
 
     gameChannel.value?.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
@@ -214,9 +213,6 @@ export function useRoom() {
     if (gameChannel.value !== null) {
       supabase.removeAllChannels();
       gameChannel.value = null;
-      console.warn(
-        "Existing game channel found. Unsubscribing before joining new room.",
-      );
     }
 
     gameChannel.value = supabase.channel(`${roomCode}`, {
@@ -229,7 +225,7 @@ export function useRoom() {
     }
   }
 
-  async function setupBroadcastListeners(roomId: string, playerId: string) {
+  async function setupBroadcastListeners(roomId: string, playerId: string, onNavigateToGame?: (payload: any) => void) {
     // Validation
     if (gameChannel.value === null && !user.value) {
       console.error("[useRoom.ts] Game channel or user not initialized.");
@@ -256,42 +252,49 @@ export function useRoom() {
       },
     );
 
-    // BROADCAST LISTENERS
-    // cards_dealt
-    gameChannel.value.on("broadcast", { event: "cards_dealt" }, async () => {
-      console.log("[BROADCAST] cards_dealt");
-      const fetchHand = async () =>
-        await supabase
-          .from("hand_cards")
-          .select("*")
-          .eq("room_id", roomId)
-          .eq("user_id", playerId);
+    // navigate_to_game (only register in lobby context)
+    if (onNavigateToGame) {
+      gameChannel.value.on(
+        "broadcast",
+        { event: "navigate_to_game" },
+        (payload) => {
+          console.log("[BROADCAST] navigate_to_game:", payload);
+          onNavigateToGame(payload);
+        },
+      );
+    }
 
-      let { data, error } = await fetchHand();
-
-      if (error) {
-        console.error("Error fetching hand cards:", error);
-        return;
-      }
-
-      // If fetch returned empty but we previously had cards, retry once after a short delay
-      if (
-        (data ?? []).length === 0 &&
-        (playerHandCards.value ?? []).length > 0
-      ) {
-        await new Promise((res) => setTimeout(res, 200));
-        const second = await fetchHand();
-        data = second.data;
-        error = second.error;
-        if (error) {
-          console.error("Error fetching hand cards on retry:", error);
-          return;
+    // POSTGRES CHANGES - hand_cards (automatic sync)
+    gameChannel.value?.on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "hand_cards",
+        filter: `user_id=eq.${playerId}`,
+      },
+      (payload) => {
+        console.log("[POSTGRES] hand_cards updated:", payload.eventType);
+        
+        if (payload.eventType === "DELETE") {
+          // Remove deleted card from local state
+          playerHandCards.value = playerHandCards.value.filter(
+            (c) => c.id !== payload.old.id
+          );
+        } else if (payload.eventType === "INSERT") {
+          // Add newly dealt card
+          playerHandCards.value = [...playerHandCards.value, payload.new as HandCards];
+        } else if (payload.eventType === "UPDATE") {
+          // Update existing card
+          const index = playerHandCards.value.findIndex((c) => c.id === payload.old.id);
+          if (index !== -1) {
+            playerHandCards.value[index] = payload.new as HandCards;
+          }
         }
       }
+    );
 
-      playerHandCards.value = data ?? [];
-      console.log("Updated player hand cards: ", playerHandCards.value);
-    });
+    // BROADCAST LISTENERS
 
     // game_initialize
     gameChannel.value.on(
@@ -323,20 +326,7 @@ export function useRoom() {
       "broadcast",
       { event: "round_submitted" },
       async (body) => {
-        const targetRoomId = body?.payload?.roomId ?? roomId;
-        console.log("[BROADCAST] round_submitted", targetRoomId);
-        const { data: roomData, error } = await supabase
-          .from("rooms")
-          .select("metadata")
-          .eq("id", targetRoomId)
-          .single();
-
-        if (error) {
-          console.error("Error fetching room metadata:", error);
-          return;
-        }
-
-        if (roomData?.metadata) handleGameStateChanges(roomData.metadata);
+        console.log("[BROADCAST] round_submitted", body);
       },
     );
 
@@ -350,13 +340,11 @@ export function useRoom() {
         filter: `id=eq.${roomId}`,
       },
       (payload) => {
-        console.log("[POSTGRES CHANGES] rooms updated: ", payload);
-        if (payload.new.owner) {
+        console.log("[POSTGRES] new room Metadata: ", payload.new.metadata);
+        if (gameMasterId.value !== payload.new.owner) {
           gameMasterId.value = payload.new.owner;
         }
-
-        const metadata = payload.new.metadata as any;
-        if (metadata) handleGameStateChanges(metadata);
+        handleGameStateChanges(payload.new.metadata);
       },
     );
   }
@@ -368,7 +356,6 @@ export function useRoom() {
       gameChannel.value = null;
 
       try {
-        console.log("[useRoom] Unsubscribing and removing channel...");
         await channel.unsubscribe();
         await supabase.removeChannel(channel);
       } catch (error) {
@@ -397,6 +384,7 @@ export function useRoom() {
     markMemberInactive,
     trackMyStatus,
     setupBroadcastListeners,
+    loadInitialHandCards,
     leaveRoomRealtime,
   };
 }

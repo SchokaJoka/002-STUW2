@@ -99,7 +99,7 @@ watch(players, (next) => {
 // ============================================================
 async function startGame() {
   if (!roomId.value || !roomCode.value) {
-    console.log("[Lobby] startGame aborted - missing roomId or roomCode");
+    console.error("[Lobby] startGame aborted - missing roomId or roomCode");
     return;
   }
   if ((players.value ?? []).length < 2) {
@@ -111,7 +111,7 @@ async function startGame() {
   } else {
     if (!selectedCollectionId.value) {
       errorMessage.value = "Please select a card set to start.";
-      console.log("[Lobby] startGame aborted - missing collectionId");
+      console.error("[Lobby] startGame aborted - missing collectionId");
       return;
     }
     await initializeGame(
@@ -147,7 +147,6 @@ function setSelectedCollection(collectionId: string) {
 onMounted(async () => {
   // Extract room code from route
   roomCode.value = String(route.params.roomCode ?? "").toUpperCase();
-  console.log("[Lobby] Extracted roomCode from route:", roomCode.value);
 
   roomId.value = await getRoomIdByCode(roomCode.value);
 
@@ -175,14 +174,9 @@ onMounted(async () => {
     .eq("id", roomId.value)
     .single();
   gameMasterId.value = room?.owner ?? null;
-  console.log("Game master ID from DB:", gameMasterId.value);
 
-  await enterRoom(roomId.value, roomCode.value, playerId.value, null);
-
-  // Listen for navigate_to_game broadcast to transition to game.vue
-  gameChannel.value?.on("broadcast", { event: "navigate_to_game" }, (payload: any) => {
+  await enterRoom(roomId.value, roomCode.value, playerId.value, null, (payload: any) => {
     isJoiningGame.value = true;
-    console.log("[BROADCAST] navigate_to_game:", payload);
     const mode = payload?.payload?.mode ?? "classic";
     navigateTo(`/play/${payload.payload.roomCode}/game/${mode}`);
   });
@@ -204,9 +198,9 @@ onUnmounted(async () => {
   if (!isLeaving.value && roomId.value) await markMemberInactive(roomId.value, playerId.value);
 
   if (isJoiningGame.value) {
-    console.log("[Lobby] Unmounted while joining game, skipping cleanup");
+    console.info("[Lobby] Unmounted while joining game, skipping cleanup");
   } else {
-    console.log("[Lobby] Unmounted, performing cleanup");
+    console.info("[Lobby] Unmounted, performing cleanup");
     await leaveRoomRealtime();
   }
 });
