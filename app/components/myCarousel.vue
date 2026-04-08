@@ -153,7 +153,7 @@ onUnmounted(() => {
 
 <style scoped>
 .carousel-wrap {
-  @apply w-full h-full flex items-start justify-center pt-4 overflow-y-visible overflow-x-clip;
+  @apply w-full h-full flex items-start justify-center pt-16 overflow-y-visible overflow-x-clip;
 }
 
 .carousel-container {

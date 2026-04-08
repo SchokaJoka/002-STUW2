@@ -530,11 +530,11 @@ const dev2gaps = ref(false);
 
     <!-- Game Section -->
     <section name="game-section" v-if="gameStarted && roundStatus !== 'lobby' && roundStatus !== 'round_end'"
-      class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex items-center gap-4 overflow-y-visible py-4"
+      class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex items-center gap-4 overflow-y-visible pt-4"
       :class="isCzar ? 'flex-col-reverse justify-start' : 'flex-col justify-start'">
       <TransitionGroup name="fade">
         <!-- Black Card -->
-        <div v-if="blackCard" class="rounded-xl bg-black p-6 pb-12 text-lg font-bold text-white">
+        <div v-if="blackCard" class="rounded-xl bg-black p-6 pb-12 text-normal font-bold text-white z-10">
           <div class="w-56 h-72">
             <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
               :class="part.isGap ? 'm-1 p-2 bg-white text-black rounded-md cursor-pointer' : ''"
@@ -546,14 +546,14 @@ const dev2gaps = ref(false);
 
         <!-- Player Hand -->
         <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false"
-          class="w-full h-full overflow-y-clip z-10">
+          class="w-full h-full overflow-hidden z-20">
           <MyCarousel :items="playerHandCards" :lookup-cards="collectionCards" :selected-ids="selectedHandCardIds"
             @select-item="pickCard">
           </MyCarousel>
         </div>
 
         <!-- Judging Area -->
-        <div v-if="roundStatus === 'round_submitted'" class="w-full h-full overflow-y-visible z-10">
+        <div v-if="roundStatus === 'round_submitted'" class="w-full h-full overflow-y-visible z-20">
           <MyCarousel :items="judgingCards" :lookup-cards="collectionCards" :selected-ids="selectedJudgingCardIds"
             selected-class="selected-judging" @select-item="pickWinner">
           </MyCarousel>
