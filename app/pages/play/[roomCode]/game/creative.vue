@@ -72,8 +72,10 @@ const {
 const { syncPlayerScoresForRoom } = usePlayerScores();
 // ============================================================
 
-const blackCardDraftParts = ref<TextPart[]>([{ text: "", isGap: false }]);
+const draftText = ref<string>("");
 const blackCardDraftError = ref<string>("");
+const draftTextarea = ref<HTMLTextAreaElement | null>(null);
+
 
 // COMPUTED PROPERTIES
 // ============================================================
@@ -85,6 +87,17 @@ const czarId = computed(() => {
 const isCzar = computed(() => {
     return !!playerId.value && playerId.value === czarId.value;
 });
+
+const createEditorVisible = computed(() => isCzar.value && roundStatus.value === "round_start" && !blackCard.value);
+
+watch(createEditorVisible, async (visible) => {
+    if (visible) {
+        await nextTick();
+        await focusContent();
+    }
+});
+
+
 
 const numberOfCardsToPlay = computed(() => {
     const card = blackCard.value as any;
@@ -191,28 +204,117 @@ const selectedJudgingCardIds = computed(() => {
 });
 // ============================================================
 
-const insertGap = () => {
-    blackCardDraftParts.value.push({ text: "", isGap: true });
+// Single-text draft editor for the black card (minimal, caret-aware)
+const insertGap = async () => {
+    const el = contentEl.value as HTMLElement | null;
+    if (!el) return;
+    // create gap span
+    const span = document.createElement('span');
+    span.setAttribute('data-gap', '1');
+    span.setAttribute('contenteditable', 'false');
+    span.className = 'inline-block m-1 p-2 bg-white text-black rounded-md';
+    span.innerText = '____';
+
+    // add delete button inside span
+    const btn = document.createElement('button');
+    btn.className = 'ml-1 -mt-2 w-6 h-6 rounded-full bg-white flex items-center justify-center';
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M19.9999 6C20.2547 6.00028 20.4999 6.09788 20.6852 6.27285C20.8706 6.44782 20.9821 6.68695 20.997 6.94139C21.012 7.19584 20.9292 7.44638 20.7656 7.64183C20.602 7.83729 20.37 7.9629 20.1169 7.993L19.9999 8H19.9189L18.9999 19C18.9999 19.7652 18.7075 20.5015 18.1826 21.0583C17.6576 21.615 16.9398 21.9501 16.1759 21.995L15.9999 22H7.99987C6.40187 22 5.09587 20.751 5.00787 19.25L5.00287 19.083L4.07987 8H3.99987C3.74499 7.99972 3.49984 7.90212 3.3145 7.72715C3.12916 7.55218 3.01763 7.31305 3.0027 7.05861C2.98776 6.80416 3.07054 6.55362 3.23413 6.35817C3.39772 6.16271 3.62977 6.0371 3.88287 6.007L3.99987 6H19.9999ZM9.99987 10C9.73465 10 9.4803 10.1054 9.29276 10.2929C9.10523 10.4804 8.99987 10.7348 8.99987 11V17C8.99987 17.2652 9.10523 17.5196 9.29276 17.7071C9.4803 17.8946 9.73465 18 9.99987 18C10.2651 18 10.5194 17.8946 10.707 17.7071C10.8945 17.5196 10.9999 17.2652 10.9999 17V11C10.9999 10.7348 10.8945 10.4804 10.707 10.2929C10.5194 10.1054 10.2651 10 9.99987 10ZM13.9999 10C13.7347 10 13.4803 10.1054 13.2928 10.2929C13.1052 10.4804 12.9999 10.7348 12.9999 11V17C12.9999 17.2652 13.1052 17.5196 13.2928 17.7071C13.4803 17.8946 13.7347 18 13.9999 18C14.2651 18 14.5194 17.8946 14.707 17.7071C14.8945 17.5196 14.9999 17.2652 14.9999 17V11C14.9999 10.7348 14.8945 10.4804 14.707 10.2929C14.5194 10.1054 14.2651 10 13.9999 10ZM13.9999 2C14.5303 2 15.039 2.21071 15.4141 2.58579C15.7892 2.96086 15.9999 3.46957 15.9999 4C15.9996 4.25488 15.902 4.50003 15.727 4.68537C15.5521 4.8707 15.3129 4.98223 15.0585 4.99717C14.804 5.01211 14.5535 4.92933 14.358 4.76574C14.1626 4.60214 14.037 4.3701 14.0069 4.117L13.9999 4H9.99987L9.99287 4.117C9.96277 4.3701 9.83715 4.60214 9.6417 4.76574C9.44625 4.92933 9.19571 5.01211 8.94126 4.99717C8.68682 4.98223 8.44769 4.8707 8.27272 4.68537C8.09775 4.50003 8.00015 4.25488 7.99987 4C7.99971 3.49542 8.19028 3.00943 8.53337 2.63945C8.87646 2.26947 9.34671 2.04284 9.84987 2.005L9.99987 2H13.9999Z" fill="black"/>
+                    </svg>`;
+    btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        span.remove();
+        syncDraftFromContent();
+        focusContent();
+    });
+    span.appendChild(btn);
+
+    // insert at caret
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) {
+        el.appendChild(span);
+    } else {
+        const range = sel.getRangeAt(0);
+        range.collapse(false);
+        range.insertNode(span);
+        // move caret after span
+        range.setStartAfter(span);
+        range.setEndAfter(span);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    syncDraftFromContent();
+    await nextTick();
+    focusContent();
 };
 
-const insertText = () => {
-    blackCardDraftParts.value.push({ text: "", isGap: false });
-};
-
-const deleteLast = () => {
-    if (blackCardDraftParts.value.length > 1) {
-        blackCardDraftParts.value.pop();
+const focusInput = async (index = 0) => {
+    await nextTick();
+    const el = draftTextarea.value;
+    if (!el) return;
+    el.focus();
+    const pos = draftText.value.length;
+    try {
+        el.selectionStart = el.selectionEnd = pos;
+    } catch (e) {
+        // ignore if not supported
     }
 };
 
-const buildBlackCardText = () =>
-    blackCardDraftParts.value
-        .map((part) => (part.isGap ? GAP_TOKEN : part.text))
-        .join("");
+const buildBlackCardText = () => draftText.value.replace(/___/g, GAP_TOKEN);
 
-const blackCardGapCount = computed(() =>
-    blackCardDraftParts.value.filter((part) => part.isGap).length,
-);
+const blackCardGapCount = computed(() => (draftText.value.match(/___/g) || []).length);
+
+
+const contentEl = ref<HTMLElement | null>(null);
+
+
+const deleteDraftPart = async (index: number) => {
+    // remove the gap element at the index within the contentEl
+    const el = contentEl.value as HTMLElement | null;
+    if (!el) return;
+    const gaps = Array.from(el.querySelectorAll('[data-gap]'));
+    const target = gaps[index] as HTMLElement | undefined;
+    if (target) {
+        target.remove();
+        // synchronize draftText
+        syncDraftFromContent();
+        await nextTick();
+        focusContent();
+    }
+};
+
+const focusContent = async () => {
+    await nextTick();
+    const el = contentEl.value as HTMLElement | null;
+    if (!el) return;
+    el.focus();
+};
+
+const syncDraftFromContent = () => {
+    const el = contentEl.value as HTMLElement | null;
+    if (!el) return;
+    const parts: string[] = [];
+    el.childNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            parts.push(node.textContent || "");
+        } else if ((node as HTMLElement).dataset && (node as HTMLElement).dataset.gap !== undefined) {
+            parts.push("___");
+        } else if (node instanceof HTMLElement) {
+            parts.push(node.innerText || "");
+        }
+    });
+    draftText.value = parts.join("");
+};
+
+const onContentInput = (e: Event) => {
+    syncDraftFromContent();
+};
+
+const onContentKeyDown = (e: KeyboardEvent) => {
+    // keep behavior minimal; allow default typing which updates content
+};
 
 async function submitBlackCard() {
     if (!isCzar.value || !roomId.value) return;
@@ -318,7 +420,7 @@ async function startNextRound() {
 
     isWhiteCardsSubmitted.value = false;
     myChosenWhiteCards.value = [];
-    blackCardDraftParts.value = [{ text: "", isGap: false }];
+    draftText.value = "";
     selectedPlayerSubmission.value = null;
 }
 
@@ -428,6 +530,19 @@ onMounted(async () => {
             await handleGameStateChanges(metadata); */
     if (!gameChannel.value) {
         await enterRoom(roomId.value, roomCode.value, playerId.value, "waiting");
+        console.log(playerId.value, roomId.value, roomCode.value);
+        // Load existing room metadata/state so reloading the page restores current round
+        try {
+            const roomMetadata = await getRoomMetadata(roomId.value);
+            const initialMetadata = (roomMetadata?.metadata ?? null) as any;
+            if (initialMetadata) {
+                // If a collection/set is present, game manager or broadcasts will populate cards; ensure scores synced
+                await syncPlayerScoresForRoom(roomId.value);
+                await handleGameStateChanges(initialMetadata);
+            }
+        } catch (e) {
+            console.error("Error loading initial room metadata:", e);
+        }
     }
 }
 );
@@ -497,7 +612,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                         </div>
                         <span class="text-xs font-semibold transition">{{ player.user_id === playerId ? 'You' :
                             player.user_name
-                        }}</span>
+                            }}</span>
                     </div>
                 </div>
                 <!-- action leave -->
@@ -521,37 +636,38 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
             <TransitionGroup name="fade">
 
                 <!-- black card -->
-                <div v-if="blackCard"
-                    class="w-full max-h-[40dvh] max-w-[55dvw] min-w-[16rem] md:max-w-md h-96 rounded-xl bg-black p-6 pb-12 text-lg font-bold text-white">
-                    <div>
-                        <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
-                            :class="part.isGap ? 'm-1 p-2 bg-white text-black rounded-md' : ''">
-                            {{ part.isGap ? getWhiteCardTextAtGap(part.gapIndex) || "___" : part.text }}
-                        </span>
+                <div v-if="blackCard" class="rounded-xl bg-black p-6 pb-12 text-lg font-bold text-white">
+                    <div class="w-full max-w-[46.75dvw] min-w-[10.2rem] md:max-w-md" style="aspect-ratio: 56 / 72;">
+                        <div class="w-full h-full p-2 break-words whitespace-normal overflow-hidden">
+                            <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
+                                :class="part.isGap ? 'inline-block m-1 p-2 bg-white text-black rounded-md break-words break-all' : 'break-words break-all'">
+                                {{ part.isGap ? getWhiteCardTextAtGap(part.gapIndex) || "___" : part.text }}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- create black card -->
-                <div v-if="isCzar && roundStatus === 'round_start' && !blackCard" class="w-full max-w-2xl">
-                    <div class="w-full flex flex-col gap-2 bg-black p-5 rounded-lg border border-[3px] border-white">
-                        <div v-for="(part, index) in blackCardDraftParts" :key="index"
-                            class="w-full flex flex-row gap-4">
-                            <span v-if="part.isGap" class="text-white">GAP</span>
-                            <input v-else type="text" v-model="part.text"
-                                class="flex-1 bg-white text-black px-2 py-1 rounded" />
+                <div v-if="isCzar && roundStatus === 'round_start' && !blackCard"
+                    class="w-64 h-80 rounded-xl bg-black p-4 text-lg font-bold flex flex-col items-start justify-between">
+
+                    <!-- Text input Area -->
+                    <div class="w-full pb-2 overflow-y-auto">
+                        <div ref="contentEl" contenteditable @input="onContentInput" @keydown="onContentKeyDown"
+                            :data-placeholder="'start writing...'" :class="{ 'content-empty': !draftText }"
+                            class="w-full h-full text-white focus:outline-none break-words whitespace-pre-wrap max-h-full overflow-auto relative">
                         </div>
-                        <div class="w-full flex flex-row gap-2">
-                            <Button v-if="!blackCardDraftParts[blackCardDraftParts.length - 1].isGap" @click="insertGap"
-                                variant="primary" size="sm" block class="rounded-xl">Insert Gap</Button>
-                            <Button v-if="blackCardDraftParts[blackCardDraftParts.length - 1].isGap" @click="insertText"
-                                variant="primary" size="sm" block class="rounded-xl">Insert Text</Button>
-                            <Button v-if="blackCardDraftParts.length > 1" @click="deleteLast" variant="primary"
-                                size="sm" block class="rounded-xl">Delete</Button>
-                        </div>
-                        <p v-if="blackCardDraftError" class="text-red-200 text-sm">{{ blackCardDraftError }}</p>
-                        <Button @click="submitBlackCard" variant="primary" size="md" class="rounded-xl">Submit Black
-                            Card</Button>
                     </div>
+
+                    <!-- Buttons GAP Submit -->
+                    <div class="w-full flex flex-row items-center justify-between">
+                        <Button @click="insertGap" variant="primary" size="sm" class="rounded-lg h-10">Insert
+                            Gap</Button>
+                        <Button @click="submitBlackCard" variant="primary" size="sm"
+                            class="rounded-lg h-10">Submit</Button>
+                    </div>
+                    <p v-if="blackCardDraftError" class="text-red-200 text-sm mt-2">{{ blackCardDraftError }}
+                    </p>
                 </div>
 
                 <!-- white cards input -->
@@ -559,6 +675,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                     class="w-full max-w-2xl flex flex-col gap-3">
                     <div v-for="(_, index) in numberOfCardsToPlay" :key="`white-input-${index}`" class="w-full">
                         <input v-model="myChosenWhiteCards[index]" type="text" placeholder="Write your white card..."
+                            @focus="trackMyStatus('writing', roomId)" @blur="trackMyStatus(myPresenceStatus, roomId)"
                             class="w-full bg-white border-2 border-black rounded-lg px-4 py-3 text-lg" />
                     </div>
                 </div>
@@ -629,5 +746,50 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
 
 :deep(.card.selected-judging) {
     @apply border-red-400 bg-red-50 ring-2 ring-red-200;
+}
+
+/* Contenteditable placeholder */
+[contenteditable].content-empty::before {
+    content: attr(data-placeholder);
+    @apply text-white/50 cursor-text;
+}
+
+/* hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* make textarea text invisible while keeping caret visible */
+.transparent-text {
+    color: transparent;
+    caret-color: white;
+}
+
+.editor-area .preview {
+    font-size: 1.125rem;
+    /* match text-lg */
+    line-height: 1.25rem;
+}
+
+.editor-area textarea {
+    font-size: 1.125rem;
+    line-height: 1.25rem;
+    font-weight: 700;
+    font-family: inherit;
+    letter-spacing: 0;
+}
+
+/* legacy gap-pill removed; using inline Tailwind classes to match final black-card look */
+
+.preview>div {
+    max-width: 100%;
+    word-break: break-word;
 }
 </style>

@@ -1,6 +1,7 @@
 <template>
   <main class="min-h-dvh min-w-dvw flex flex-col items-center">
-    <NuxtRouteAnnouncer />
+    <!-- <NuxtRouteAnnouncer /> -->
+    <!-- Nuxt Pages -->
     <NuxtPage />
   </main>
 </template>

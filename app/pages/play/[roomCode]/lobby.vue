@@ -17,7 +17,7 @@ const isGameMaster = useState<boolean>("isGameMaster", () => false);
 const roomCode = ref<string>("");
 
 const gameModes: Array<{
-  value: "classic" | "extended" | "creative";
+  value: "classic" | "creative";
   title: string;
   description: string;
 }> = [
@@ -25,11 +25,6 @@ const gameModes: Array<{
       value: "classic",
       title: "Classic",
       description: "The epic game just as you know it.",
-    },
-    {
-      value: "extended",
-      title: "Extended",
-      description: "Spice up your usual game with some jokers.",
     },
     {
       value: "creative",
