@@ -68,6 +68,8 @@
               </div>
             </div>
           </div>
+          <div v-if="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"> {{
+            errorMessage }} </div>
         </div>
 
       </div>
@@ -84,6 +86,7 @@ const editingGuestName = ref(false);
 const guestNameEdit = ref("");
 const guestNameInput = ref<HTMLInputElement | null>(null);
 
+const errorMessage = ref<string>("");
 const startEditGuestName = () => {
   guestNameEdit.value = user.value?.user_metadata?.full_name || "";
   editingGuestName.value = true;
@@ -111,10 +114,18 @@ const saveGuestName = async () => {
   editingGuestName.value = false;
 };
 
+const { getRoomIdByCode } = useRoom();
+
 const joinRoom = async () => {
   const roomCode = roomCodeInput.value.trim().toUpperCase();
-
+  errorMessage.value = "";
   if (!roomCode) return;
+
+  const roomId = await getRoomIdByCode(roomCode);
+  if (!roomId) {
+    errorMessage.value = "Room does not exist.";
+    return;
+  }
 
   await navigateTo(`/play/${roomCode}/lobby`);
 };
