@@ -7,7 +7,7 @@ const props = withDefaults(
         selectedMode: "classic" | "extended" | "creative";
         canSelect: boolean;
         collections: Array<{ id: string; name: string }>;
-        selectedCollectionId: string | null;
+        selectedCollectionIds: string[];
         showArrowIcon?: boolean;
     }>(),
     {
@@ -71,13 +71,13 @@ function handleCollectionSelect(collectionId: string) {
                     class="w-full flex flex-row items-center justify-start gap-3 px-4 py-1 rounded-full bg-white text-black transition-colors duration-250 ease-out"
                     :style="{ transitionDelay: `${index * 45}ms` }"
                     @click.stop="handleCollectionSelect(collection.id)">
-                    <div class="size-5 shrink-0 aspect-square rounded border-2 flex items-center justify-center border-black transition-colors duration-250 ease-out" :class="collection.id === selectedCollectionId
+                    <div class="size-5 shrink-0 aspect-square rounded border-2 flex items-center justify-center border-black transition-colors duration-250 ease-out" :class="selectedCollectionIds.includes(collection.id)
                             ? ''
                             : ''
                         ">
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"
                             class="transition-all duration-200 ease-out"
-                            :class="collection.id === selectedCollectionId ? 'opacity-100 scale-100 text-white' : 'opacity-0 scale-75 text-transparent'">
+                            :class="selectedCollectionIds.includes(collection.id) ? 'opacity-100 scale-100 text-white' : 'opacity-0 scale-75 text-transparent'">
                             <path d="M2 6.2L4.4 8.6L10 3" stroke="black" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round" />
                         </svg>

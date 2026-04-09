@@ -48,9 +48,9 @@ export function useGameManager() {
     roomId: string,
     roomCode: string,
     dev2gaps: boolean,
-    collectionId: string | null = null,
+    collectionIds: string[] | string | null = null,
     mode: "classic" | "extended" | "creative",
-  ) {
+  ): Promise<boolean> {
     if (!gameChannel.value || players.value.length < 2 || !isGameMaster.value) {
       if (players.value.length < 2)
         //display error message on html page that at least 2 players are required
@@ -64,9 +64,11 @@ export function useGameManager() {
 
     try {
       const invokeBody: any = {
-        set_id: collectionId,
+        // set_id may be a single id or an array of ids
+        set_id: collectionIds,
         room_id: roomId,
-        cardsPerPlayer: mode === "creative" ? null : 8,
+        // at least 4 at most 8 cards per player depending on how big set is. but if once started with for example 4 cards per player a game it should always be 4 in this room and so it is for example if started with 8
+        cardsPerPlayer: mode === "creative" ? null : 4,
         dev2gaps: dev2gaps,
         mode: mode,
       };
@@ -77,13 +79,34 @@ export function useGameManager() {
           body: invokeBody,
         });
 
-      if (invokeError || !edgeInitializeData) {
+      if (invokeError) {
         console.error(
           "Failed to assign hand cards (initialize_game):",
           invokeError,
         );
+        errorMessage.value =
+          invokeError.message || "Failed to initialize game.";
         isStartingGame.value = false;
-        return;
+        return false;
+      }
+
+      if (!edgeInitializeData) {
+        console.error(
+          "Failed to assign hand cards (initialize_game): empty response",
+        );
+        errorMessage.value = "Failed to initialize game (no response).";
+        isStartingGame.value = false;
+        return false;
+      }
+
+      // Edge function may return JSON with an error field even on 2xx
+      if ((edgeInitializeData as any)?.error) {
+        const msg = (edgeInitializeData as any).error;
+        console.error("Edge initialize_game returned error:", msg);
+        errorMessage.value =
+          typeof msg === "string" ? msg : JSON.stringify(msg);
+        isStartingGame.value = false;
+        return false;
       }
     } catch (e) {
       console.error("Error invoking initialize_game:", e);
@@ -102,7 +125,7 @@ export function useGameManager() {
       gameChannel.value.send({
         type: "broadcast",
         event: "game_initialize",
-        payload: { set_id: collectionId },
+        payload: { set_id: collectionIds },
       });
     }
 
@@ -112,6 +135,7 @@ export function useGameManager() {
     });
 
     isStartingGame.value = false;
+    return true;
   }
 
   // ACTION - Start next round (Czar)
@@ -151,12 +175,14 @@ export function useGameManager() {
     // Avoid processing unchanged metadata
     const prev = gameState.value ?? null;
     if (prev && JSON.stringify(prev) === JSON.stringify(currentMetaData)) {
-      console.warn("[HANDLEGAMESTATECHANGES] Ignoring duplicate metadata update");
+      console.warn(
+        "[HANDLEGAMESTATECHANGES] Ignoring duplicate metadata update",
+      );
       return;
     }
 
-    const updateIfChanged = <T,>(clientRef: Ref<T>, newValue: T) => {
-      if(clientRef.value !== newValue) {
+    const updateIfChanged = <T>(clientRef: Ref<T>, newValue: T) => {
+      if (clientRef.value !== newValue) {
         clientRef.value = newValue;
       }
     };
@@ -165,7 +191,6 @@ export function useGameManager() {
     updateIfChanged(gameState, currentMetaData);
     updateIfChanged(roundStatus, currentMetaData.round_status);
     updateIfChanged(gameStarted, currentMetaData.round_status !== "lobby");
-  
 
     switch (currentMetaData.round_status) {
       case "round_create_black_card":
@@ -211,7 +236,6 @@ export function useGameManager() {
 
   async function handleRoundSubmitted(currentMetaData: any) {
     winnerUserId.value = null;
-
 
     const czarId = gameState.value?.czar_id;
     if (!czarId || !roomId.value || !playerId.value) return;

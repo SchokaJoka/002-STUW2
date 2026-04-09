@@ -242,28 +242,47 @@ async function submitCards() {
     isSubmittingWhiteCards.value = true;
 
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "submit_white_cards",
-        {
-          method: "POST",
-          body: {
-            czar_id: czarId.value,
-            user_id: playerId.value,
-            room_id: roomId.value,
-            submitted_cards: myChosenWhiteCards.value,
-          },
+      const { data, error } = await supabase.functions.invoke("submit_white_cards", {
+        method: "POST",
+        body: {
+          czar_id: czarId.value,
+          user_id: playerId.value,
+          room_id: roomId.value,
+          submitted_cards: myChosenWhiteCards.value,
         },
-      );
+      });
+
       if (error) {
         console.error("[EDGE] Error submitting white cards:", error);
+        errorMessage.value = error.message || "Failed to submit cards.";
+      } else if ((data as any)?.error) {
+        // Edge function returned structured error payload (200) — surface to UI
+        errorMessage.value = (data as any).error;
+        console.warn("[EDGE] submit_white_cards reported error:", data);
       } else {
-        // Cards will be automatically removed via postgres_changes subscription
+        // Remove submitted cards from local hand immediately (frontend UX).
+        // Some UI items may carry `id` (hand_card.id) or `card_id` (cards.id),
+        // so remove by either to avoid stale items.
+        const submittedHandIds = new Set(myChosenWhiteCards.value.map((c: any) => c.id).filter(Boolean));
+        const submittedCardIds = new Set(myChosenWhiteCards.value.map((c: any) => c.card_id || c.cardId || c.id).filter(Boolean));
+
+        playerHandCards.value = playerHandCards.value.filter((handCard: any) => {
+          if (submittedHandIds.has(handCard.id)) return false;
+          if (submittedCardIds.has(handCard.card_id)) return false;
+          return true;
+        });
+
         myChosenWhiteCards.value = [];
         whiteCardPickError.value = "";
 
         isWhiteCardsSubmitted.value = true;
 
-
+        // Ensure frontend reflects DB state (in case of race when pool is rebuilt)
+        try {
+          await loadInitialHandCards(roomId.value, playerId.value);
+        } catch (e) {
+          console.warn("Failed to reload hand cards after submit:", e);
+        }
 
         console.info("[EDGE] success submit_white_cards", data);
       }
@@ -324,6 +343,24 @@ async function submitWinner(winnerSubmission: any) {
 watch(selectedPlayerSubmission, (next) => {
   if (next) errorMessage.value = "";
 });
+
+// Auto-clear page error messages after 3000ms
+let pageErrorTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => errorMessage.value,
+  (next) => {
+    if (pageErrorTimer) {
+      clearTimeout(pageErrorTimer);
+      pageErrorTimer = null;
+    }
+    if (next) {
+      pageErrorTimer = setTimeout(() => {
+        errorMessage.value = "";
+        pageErrorTimer = null;
+      }, 3000);
+    }
+  },
+);
 // ============================================================
 
 // onMounted, onUnmounted
@@ -388,10 +425,14 @@ onMounted(async () => {
 
       // Load collection cards if available
       if (initialMetadata.set_id) {
-        const { data: cardsData } = await supabase
-          .from("cards")
-          .select("*")
-          .eq("collection_id", initialMetadata.set_id);
+        const setId = initialMetadata.set_id;
+        let query = supabase.from("cards").select("*");
+        if (Array.isArray(setId)) {
+          query = query.in("collection_id", setId);
+        } else {
+          query = query.eq("collection_id", setId);
+        }
+        const { data: cardsData } = await query;
 
         collectionCards.value = cardsData ?? [];
       }
@@ -599,22 +640,20 @@ const dev2gaps = ref(false);
       <div class="w-full h-full flex flex-col max-w-2xl gap-4 p-4 overflow-y-auto">
         <!-- Items -->
         <TransitionGroup name="fade">
-          <div v-for="(player, index) in displayedPlayers" :key="player.user_id"
-            :class="[
-              'w-full flex flex-row justify-between items-stretch border-[3px] ',
-              index === displayedPlayers.length - 1 ? 'bg-black text-white border-white' : 'bg-white text-black border-black'
-            ]">
+          <div v-for="(player, index) in displayedPlayers" :key="player.user_id" :class="[
+            'w-full flex flex-row justify-between items-stretch border-[3px] ',
+            index === displayedPlayers.length - 1 ? 'bg-black text-white border-white' : 'bg-white text-black border-black'
+          ]">
             <div class="w-full flex flex-row items-center">
               <div class="text-2xl flex items-center h-full px-4"
-              :class="index === displayedPlayers.length - 1 ? 'bg-white text-black' : 'bg-black text-white'">
-                {{ 
-                  index === displayedPlayers.length - 1 ? "Last" : index + 1 + '.' 
+                :class="index === displayedPlayers.length - 1 ? 'bg-white text-black' : 'bg-black text-white'">
+                {{
+                  index === displayedPlayers.length - 1 ? "Last" : index + 1 + '.'
                 }}
               </div>
               <div class="flex flex-row w-full py-2 px-4 items-center justify-between">
                 <div class="flex flex-row items-center gap-2">
-                  <div
-                    class="border-2 rounded-full flex items-center justify-center text-white font-bold mb-1 size-12"
+                  <div class="border-2 rounded-full flex items-center justify-center text-white font-bold mb-1 size-12"
                     :class="index === displayedPlayers.length - 1 ? 'border-white' : 'border-black'">
                     <img class="rounded-full size-10" src="https://placehold.co/50x50" />
                   </div>

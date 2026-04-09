@@ -81,7 +81,8 @@ Deno.serve(async (req: Request) => {
         return new Response(
           JSON.stringify({ error: "User does not own all submitted cards" }),
           {
-            status: 403,
+            // Return 200 so client receives structured error payload instead of a FunctionsHttpError
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
@@ -115,6 +116,32 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", user_id)
         .in("card_id", submittedCardIds);
       if (deleteError) throw deleteError;
+      
+      // --- Step 4: Append submitted cards to room metadata played/submitted lists (deduplicated)
+      const { data: roomRow, error: roomRowErr } = await supabase
+        .from("rooms")
+        .select("metadata")
+        .eq("id", room_id)
+        .single();
+      if (roomRowErr) throw roomRowErr;
+
+      const existingSubmitted = (roomRow?.metadata?.submitted_white_cards as string[]) ?? [];
+      const existingPlayed = (roomRow?.metadata?.played_white_cards as string[]) ?? [];
+
+      const nextSubmitted = Array.from(new Set(existingSubmitted.concat(submittedCardIds)));
+      const nextPlayed = Array.from(new Set(existingPlayed.concat(submittedCardIds)));
+
+      const { error: roomUpdateErr } = await supabase
+        .from("rooms")
+        .update({
+          metadata: {
+            ...(roomRow?.metadata ?? {}),
+            submitted_white_cards: nextSubmitted,
+            played_white_cards: nextPlayed,
+          },
+        })
+        .eq("id", room_id);
+      if (roomUpdateErr) throw roomUpdateErr;
     } else {
       // --- Step 2: Update room_members — merge submitted card IDs into metadata, set status = "submitted" ---
       const { data: memberRow, error: memberFetchError } = await supabase

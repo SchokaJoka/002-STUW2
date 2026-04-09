@@ -58,25 +58,25 @@ Deno.serve(async (req: Request) => {
 
     if (mode !== "creative") {
       // 2. Fetch cards (selecting '*' for black cards to get full data)
+      const isArray = Array.isArray(set_id);
+      const whiteQuery = supabase
+        .from("cards")
+        .select("id")
+        .eq("is_black", false);
+      const blackBase = supabase.from("cards").select("*").eq("is_black", true);
+
+      const whiteQueryFinal = isArray
+        ? whiteQuery.in("collection_id", set_id)
+        : whiteQuery.eq("collection_id", set_id);
+      let blackQueryFinal = isArray
+        ? blackBase.in("collection_id", set_id)
+        : blackBase.eq("collection_id", set_id);
+      if (dev2gaps) blackQueryFinal = blackQueryFinal.eq("number_of_gaps", 2);
+
       const [
         { data: whiteCards, error: whiteCardsErr },
         { data: blackCards, error: blackCardsErr },
-      ] = await Promise.all([
-        supabase
-          .from("cards")
-          .select("id")
-          .eq("collection_id", set_id)
-          .eq("is_black", false),
-        (() => {
-          let query = supabase
-            .from("cards")
-            .select("*")
-            .eq("collection_id", set_id)
-            .eq("is_black", true);
-          if (dev2gaps) query = query.eq("number_of_gaps", 2);
-          return query;
-        })(),
-      ]);
+      ] = await Promise.all([whiteQueryFinal, blackQueryFinal]);
 
       if (whiteCardsErr || blackCardsErr) throw whiteCardsErr || blackCardsErr;
 
@@ -99,6 +99,16 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      /*       // Ensure any previous ownership for these card_ids in this room is cleared
+      const handCardIds = handInserts.map((h) => h.card_id);
+      if (handCardIds.length > 0) {
+        // delete any existing hand_cards with these card_ids in this room so ownership is overwritten
+        insertPromises.push(
+          supabase.from("hand_cards").delete().eq("room_id", room_id).in("card_id", handCardIds),
+        );
+      } */
+
+      // Insert new hand assignments
       insertPromises.push(supabase.from("hand_cards").insert(handInserts));
       // 4. Handle Remaining White Cards
       const remainingWhite = whitePool
@@ -152,6 +162,25 @@ Deno.serve(async (req: Request) => {
             .eq("id", room_id),
         );
       }
+      // Ensure there are enough white cards to deal to players.
+      // Minimum is 4 per player, but if cardsPerPlayer is provided and greater, require that many.
+      const minPerPlayer = 4;
+      const perPlayer = Math.max(minPerPlayer, cardsPerPlayer ?? minPerPlayer);
+      const requiredWhiteCards = (members?.length ?? 0) * perPlayer;
+      if ((whiteCards?.length ?? 0) < requiredWhiteCards) {
+        console.error(
+          `[initialize_game] Not enough white cards: have ${whiteCards?.length ?? 0}, need ${requiredWhiteCards}`,
+        );
+        return new Response(
+          JSON.stringify({
+            error: `Not enough white cards across selected collections.`,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     } else {
       // Fetch existing metadata first
       const { data: room, error: roomErr } = await supabase
@@ -170,7 +199,7 @@ Deno.serve(async (req: Request) => {
               ...(room.metadata ?? {}),
               black_card: null,
               czar_id: czarId,
-              round_status: "round_start",
+              round_status: "round_create_black_card",
               set_id: null,
               round: 1,
               handSize: null,

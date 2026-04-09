@@ -157,15 +157,94 @@ Deno.serve(async (req: Request) => {
 
     // Draw enough white cards from the pool in one query
     if (totalNeeded > 0) {
+      // Ensure enough cards in the remaining pool — if not, rebuild pool from collection(s)
+      const { count: remainingCount, error: remainingCountErr } = await supabase
+        .from("remaining_white_cards")
+        .select("card_id", { count: "exact" })
+        .eq("room_id", room_id);
+      if (remainingCountErr) throw remainingCountErr;
+
+      // If remaining pool is insufficient, rebuild it from collection(s) minus current hand cards
+      if ((remainingCount ?? 0) < totalNeeded) {
+        // Determine collection(s) used by this room
+        const setId = room.metadata?.set_id;
+
+        // Fetch all white card ids from the collection(s)
+        let cardsQuery = supabase
+          .from("cards")
+          .select("id")
+          .eq("is_black", false);
+        if (Array.isArray(setId)) {
+          cardsQuery = cardsQuery.in("collection_id", setId as string[]);
+        } else if (setId) {
+          cardsQuery = cardsQuery.eq("collection_id", setId as string);
+        }
+        const { data: allCards, error: allCardsErr } = await cardsQuery;
+        if (allCardsErr) throw allCardsErr;
+        const allCardIds = (allCards ?? []).map((c: any) => c.id);
+
+        // Fetch all current hand card ids in the room to keep ownership
+        const { data: currentHands, error: currentHandsErr } = await supabase
+          .from("hand_cards")
+          .select("card_id")
+          .eq("room_id", room_id);
+        if (currentHandsErr) throw currentHandsErr;
+        const currentHandIds = new Set(
+          (currentHands ?? []).map((r: any) => r.card_id),
+        );
+
+        // Prefer to refill from discard (played/submitted). Exclude cards currently in hands.
+        const playedIds = new Set((room.metadata?.played_white_cards as string[]) ?? []);
+        const submittedIds = new Set((room.metadata?.submitted_white_cards as string[]) ?? []);
+        const usedIds = new Set<string>([...playedIds, ...submittedIds]);
+
+        let refillIds: string[] = [];
+        if (usedIds.size > 0) {
+          refillIds = Array.from(usedIds).filter((id: string) => !currentHandIds.has(id));
+        } else {
+          // Fallback: use all collection cards minus current hands
+          refillIds = allCardIds.filter((id: string) => !currentHandIds.has(id));
+        }
+
+        // Shuffle refill deck
+        for (let i = refillIds.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [refillIds[i], refillIds[j]] = [refillIds[j], refillIds[i]];
+        }
+
+        // Replace remaining_white_cards for room with refillIds
+        if (refillIds.length > 0) {
+          const { error: clearErr } = await supabase
+            .from("remaining_white_cards")
+            .delete()
+            .eq("room_id", room_id);
+          if (clearErr) throw clearErr;
+
+          const refillRows = refillIds.map((card_id: string) => ({
+            card_id,
+            room_id,
+          }));
+          const { error: insertRefillErr } = await supabase
+            .from("remaining_white_cards")
+            .insert(refillRows);
+          if (insertRefillErr) throw insertRefillErr;
+        }
+      }
+
+      // Now draw from the (possibly rebuilt) pool
       const { data: poolCards, error: poolErr } = await supabase
         .from("remaining_white_cards")
         .select("card_id")
-        .eq("room_id", room_id)
-        .order("card_id")
-        .limit(totalNeeded);
+        .eq("room_id", room_id);
       if (poolErr) throw poolErr;
 
-      const pool = (poolCards ?? []).map((c) => c.card_id);
+      // Build a local pool, shuffle, and take only what's needed to avoid DB ordering issues
+      let pool = (poolCards ?? []).map((c) => c.card_id);
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      pool = pool.slice(0, totalNeeded);
 
       if (pool.length > 0) {
         // Remove drawn cards from pool immediately
@@ -175,6 +254,14 @@ Deno.serve(async (req: Request) => {
           .eq("room_id", room_id)
           .in("card_id", pool);
         if (removePoolErr) throw removePoolErr;
+
+        // Before inserting new hand assignments, clear any previous ownership for these card_ids in this room
+        const { error: deletePrevErr } = await supabase
+          .from("hand_cards")
+          .delete()
+          .eq("room_id", room_id)
+          .in("card_id", pool);
+        if (deletePrevErr) throw deletePrevErr;
 
         // Slice pool per player and build hand_cards insert rows
         let cursor = 0;

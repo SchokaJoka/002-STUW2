@@ -37,7 +37,7 @@ const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
 
 const collections = ref<any[]>([]);
-const selectedCollectionId = ref<string | null>(null);
+const selectedCollectionIds = useState<string[]>('selectedCollectionIds', () => []);
 const selectedGameMode = useState<"classic" | "extended" | "creative">(
   "selectedGameMode",
   () => "classic",
@@ -74,6 +74,24 @@ const {
 const { getCardCollections } = useCards();
 // ============================================================
 
+// Auto-clear error messages after 3000ms
+let errorClearTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => errorMessage.value,
+  (next) => {
+    if (errorClearTimer) {
+      clearTimeout(errorClearTimer);
+      errorClearTimer = null;
+    }
+    if (next) {
+      errorClearTimer = setTimeout(() => {
+        errorMessage.value = null;
+        errorClearTimer = null;
+      }, 3000);
+    }
+  },
+);
+
 // COMPUTED PROPERTIES
 // ============================================================
 
@@ -102,22 +120,24 @@ async function startGame() {
     return;
   }
   if (selectedGameMode.value === "creative") {
-    await initializeGame(roomId.value, roomCode.value, dev2gaps.value, null, selectedGameMode.value);
+    const ok = await initializeGame(roomId.value, roomCode.value, dev2gaps.value, null, selectedGameMode.value);
+    if (ok) navigateTo(`/play/${roomCode.value}/game/${selectedGameMode.value}`);
+    return;
   } else {
-    if (!selectedCollectionId.value) {
-      errorMessage.value = "Please select a card set to start.";
-      console.error("[Lobby] startGame aborted - missing collectionId");
+    if (!selectedCollectionIds.value || selectedCollectionIds.value.length === 0) {
+      errorMessage.value = "Please select at least one card set to start.";
+      console.error("[Lobby] startGame aborted - missing collectionId(s)");
       return;
     }
-    await initializeGame(
+    const ok = await initializeGame(
       roomId.value,
       roomCode.value,
       dev2gaps.value,
-      selectedCollectionId.value,
+      selectedCollectionIds.value,
       selectedGameMode.value,
     );
+    if (ok) navigateTo(`/play/${roomCode.value}/game/${selectedGameMode.value}`);
   }
-  navigateTo(`/play/${roomCode.value}/game/${selectedGameMode.value}`);
 }
 
 function setLobbySettings(newVal: "classic" | "extended" | "creative") {
@@ -133,7 +153,10 @@ function setLobbySettings(newVal: "classic" | "extended" | "creative") {
 }
 
 function setSelectedCollection(collectionId: string) {
-  selectedCollectionId.value = collectionId;
+  // Toggle selection of a collection (allow combining multiple sets)
+  selectedCollectionIds.value = selectedCollectionIds.value.includes(collectionId)
+    ? selectedCollectionIds.value.filter(c => c !== collectionId)
+    : [...selectedCollectionIds.value, collectionId];
 }
 // ============================================================
 
@@ -177,8 +200,14 @@ onMounted(async () => {
   });
 
   collections.value = await getCardCollections();
-  if (!selectedCollectionId.value && collections.value.length > 0) {
-    selectedCollectionId.value = collections.value[0].id;
+  if (collections.value.length > 0) {
+    // Force default selection to "Cards Against Humanity" when entering lobby
+    const cah = collections.value.find((c: any) => (c.name || "").trim().toLowerCase() === "cards against humanity");
+    if (cah) {
+      selectedCollectionIds.value = [cah.id];
+    } else if (selectedCollectionIds.value.length === 0) {
+      selectedCollectionIds.value = [collections.value[0].id];
+    }
   }
 });
 
@@ -269,7 +298,7 @@ const dev2gaps = ref(false);
       <div class="flex flex-col gap-2 w-full">
         <GameModeSelectionCard v-for="mode in gameModes" :key="mode.value" :mode="mode.value" :title="mode.title"
           :description="mode.description" :selected-mode="selectedGameMode" :can-select="isGameMaster"
-          :collections="collections" :selected-collection-id="selectedCollectionId" @select="setLobbySettings"
+          :collections="collections" :selected-collection-ids="selectedCollectionIds" @select="setLobbySettings"
           @select-collection="setSelectedCollection" :show-arrow-icon="mode.value !== 'creative'" />
       </div>
     </main>

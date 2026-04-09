@@ -245,7 +245,11 @@ export function useRoom() {
     }
   }
 
-  async function setupBroadcastListeners(roomId: string, playerId: string, onNavigateToGame?: (payload: any) => void) {
+  async function setupBroadcastListeners(
+    roomId: string,
+    playerId: string,
+    onNavigateToGame?: (payload: any) => void,
+  ) {
     // Validation
     if (gameChannel.value === null && !user.value) {
       console.error("[useRoom.ts] Game channel or user not initialized.");
@@ -297,23 +301,28 @@ export function useRoom() {
       },
       (payload) => {
         console.log("[POSTGRES] hand_cards updated:", payload.eventType);
-        
+
         if (payload.eventType === "DELETE") {
           // Remove deleted card from local state
           playerHandCards.value = playerHandCards.value.filter(
-            (c) => c.id !== payload.old.id
+            (c) => c.id !== payload.old.id,
           );
         } else if (payload.eventType === "INSERT") {
           // Add newly dealt card
-          playerHandCards.value = [...playerHandCards.value, payload.new as HandCards];
+          playerHandCards.value = [
+            ...playerHandCards.value,
+            payload.new as HandCards,
+          ];
         } else if (payload.eventType === "UPDATE") {
           // Update existing card
-          const index = playerHandCards.value.findIndex((c) => c.id === payload.old.id);
+          const index = playerHandCards.value.findIndex(
+            (c) => c.id === payload.old.id,
+          );
           if (index !== -1) {
             playerHandCards.value[index] = payload.new as HandCards;
           }
         }
-      }
+      },
     );
 
     // POSTGRES CHANGES - room_members status updates
@@ -327,7 +336,9 @@ export function useRoom() {
       },
       (payload) => {
         // Update player status in local players list
-        const playerIndex = players.value.findIndex((p) => p.user_id === payload.new.user_id);
+        const playerIndex = players.value.findIndex(
+          (p) => p.user_id === payload.new.user_id,
+        );
         if (playerIndex !== -1) {
           players.value[playerIndex] = {
             ...players.value[playerIndex],
@@ -336,30 +347,45 @@ export function useRoom() {
         }
         // Update player score from member data
         updatePlayerScoreFromMember(payload.new);
-      }
+      },
     );
 
     // BROADCAST LISTENERS
 
     // game_initialize
+    // ...existing code...
     gameChannel.value.on(
       "broadcast",
       { event: "game_initialize" },
       async (body) => {
-        console.log("[BROADCAST] game_initialize: ", body);
-        const { data: data2, error: error2 } = await supabase
-          .from("cards")
-          .select("*")
-          .eq("collection_id", body.payload.set_id);
+        try {
+          console.log("[BROADCAST] game_initialize: ", body);
+          const setId = body?.payload?.set_id;
 
-        if (error2) {
-          console.error("Error fetching collection cards:", error2);
-          return;
+          let query = supabase.from("cards").select("*");
+          if (Array.isArray(setId)) {
+            query = query.in("collection_id", setId as string[]);
+          } else if (setId) {
+            query = query.eq("collection_id", setId as string);
+          }
+
+          const { data: data2, error: error2 } = await query;
+          if (error2) {
+            console.error("Error fetching collection cards:", error2);
+            return;
+          }
+
+          collectionCards.value = data2 ?? [];
+          console.log(
+            "[BROADCAST] loaded collection cards:",
+            collectionCards.value.length,
+          );
+        } catch (err) {
+          console.error("[BROADCAST] game_initialize handler error:", err);
         }
-        collectionCards.value = data2 ?? [];
-        console.log("[BROADCAST] loaded collection cards:", collectionCards.value.length);
       },
     );
+    // ...existing code...
 
     // game_start
     gameChannel.value.on("broadcast", { event: "game_start" }, () => {
