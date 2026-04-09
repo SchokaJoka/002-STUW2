@@ -168,6 +168,9 @@ export function useGameManager() {
   
 
     switch (currentMetaData.round_status) {
+      case "round_create_black_card":
+        await handleRoundStart(currentMetaData);
+        break;
       case "round_start":
         await handleRoundStart(currentMetaData);
         break;

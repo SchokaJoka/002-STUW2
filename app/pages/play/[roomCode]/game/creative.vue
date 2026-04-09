@@ -241,6 +241,34 @@ const selectedJudgingCardIds = computed(() => {
     return judgingCarouselItems.value.filter((item) => String(item.submission.user_id) === selectedId).map((item) => item.id);
 });
 
+const creativeCarouselItems = computed(() => {
+    const count = numberOfCardsToPlay.value;
+    return Array.from({ length: count }, (_, index) => ({
+        id: `creative-card-${index}`,
+        text: myChosenWhiteCards.value[index] ?? "",
+    }));
+});
+
+const updateCreativeCardText = (payload: { index: number; text: string }) => {
+    if (!Number.isFinite(payload.index) || payload.index < 0) return;
+
+    const next = [...myChosenWhiteCards.value];
+    while (next.length < numberOfCardsToPlay.value) {
+        next.push("");
+    }
+
+    next[payload.index] = payload.text;
+    myChosenWhiteCards.value = next;
+};
+
+const handleCreativeInputFocus = async () => {
+    await trackMyStatus("writing", roomId.value);
+};
+
+const handleCreativeInputBlur = async () => {
+    await trackMyStatus(myPresenceStatus.value, roomId.value);
+};
+
 const insertGap = async () => {
     const start = draftCursor.value;
     replaceDraftRange(start, start, GAP_TOKEN);
@@ -375,10 +403,9 @@ const handleDraftKeydown = async (event: KeyboardEvent) => {
 const buildBlackCardText = () => draftText.value;
 const blackCardGapCount = computed(() => draftText.value.split(GAP_TOKEN).length - 1);
 
-async function submitBlackCard() {
+async function submitBlackCard(text: string, number_of_gaps: number) {
     if (!isCzar.value || !roomId.value || isSubmittingBlackCard.value) return;
 
-    const text = buildBlackCardText();
     if (!text.trim()) {
         blackCardDraftError.value = "Black card cannot be empty.";
         return;
@@ -387,12 +414,12 @@ async function submitBlackCard() {
     blackCardDraftError.value = "";
     const cardPayload = {
         text,
-        number_of_gaps: blackCardGapCount.value,
+        number_of_gaps: number_of_gaps,
         is_black: true,
     };
     isSubmittingBlackCard.value = true;
     try {
-        const { data, error } = await supabase.functions.invoke<{ success: boolean; card: typeof cardPayload }>("submit_black_card", {
+        const { data, error } = await supabase.functions.invoke("submit_black_card", {
             method: "POST",
             body: {
                 room_id: roomId.value,
@@ -416,7 +443,18 @@ async function submitBlackCard() {
 
 const canSubmitWhiteCards = computed(() => {
     if (!blackCard.value) return false;
-    return myChosenWhiteCards.value.every((text) => text.trim().length > 0);
+
+    const requiredCount = numberOfCardsToPlay.value;
+    if (myChosenWhiteCards.value.length < requiredCount) return false;
+
+    for (let i = 0; i < requiredCount; i += 1) {
+        const value = myChosenWhiteCards.value[i];
+        if (typeof value !== "string" || value.trim().length === 0) {
+            return false;
+        }
+    }
+
+    return true;
 });
 
 async function submitCards() {
@@ -601,6 +639,8 @@ const roundStatusMessage = computed(() => {
     switch (roundStatus.value) {
         case "lobby":
             return "Waiting for players...";
+        case "round_create_black_card":
+            return isCzar.value ? "Create the black card!" : "Waiting for Czar to create the black card...";
         case "round_start":
             return isCzar.value
                 ? blackCard.value
@@ -633,12 +673,15 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                     <div v-for="player in players" :key="player.user_id" class="flex flex-col items-center gap-1">
                         <div class="flex items-center justify-center size-12 rounded-full border-2 transition-all"
                             :class="czarId === player.user_id ? 'border-yellow-300' : player.status === 'submitted' ? 'border-green-300' : 'border-black'">
-                            <img src="https://placehold.co/40" alt="Player avatar" class="size-10 rounded-full object-cover" />
+                            <img src="https://placehold.co/40" alt="Player avatar"
+                                class="size-10 rounded-full object-cover" />
                         </div>
-                        <span class="text-xs font-semibold transition">{{ player.user_id === playerId ? 'You' : player.user_name }}</span>
+                        <span class="text-xs font-semibold transition">{{ player.user_id === playerId ? 'You' :
+                            player.user_name }}</span>
                     </div>
                 </div>
-                <Button @click="deletePlayerFromRoomTable(roomId, playerId)" variant="primary" size="md" class="rounded-xl">
+                <Button @click="deletePlayerFromRoomTable(roomId, playerId)" variant="primary" size="md"
+                    class="rounded-xl">
                     Leave
                 </Button>
             </div>
@@ -652,53 +695,35 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
         <!-- Game Section -->
         <section name="game-section" v-if="gameStarted"
             class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex items-center gap-4 overflow-y-visible py-4"
-            :class="isCzar ? 'flex-col-reverse justify-start' : 'flex-col justify-start'">
+            :class="isCzar
+                ? roundStatus === 'round_create_black_card'
+                    ? 'flex-col justify-start'
+                    : 'flex-col-reverse justify-start'
+                : 'flex-col justify-start'">
             <TransitionGroup name="fade">
-                
-                <!-- Submitted Black Card -->
-                <div v-if="blackCard" class="rounded-xl bg-black p-6 pb-12 text-lg font-bold text-white">
-                    <div class="w-full max-w-[46.75dvw] min-w-[10.2rem] md:max-w-md" style="aspect-ratio: 56 / 72;">
-                        <div class="w-full h-full p-2 break-words whitespace-normal overflow-hidden">
-                            <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
-                                :class="part.isGap ? 'inline-block m-1 p-2 bg-white text-black rounded-md break-words break-all' : 'break-words break-all'">
-                                {{ part.isGap ? getWhiteCardTextAtGap(part.gapIndex) || '___' : part.text }}
-                            </span>
-                        </div>
+
+                <!-- Black Card -->
+                <div v-if="blackCard" class="rounded-xl bg-black p-6 text-normal font-bold text-white z-10">
+                    <div class="w-48 h-56 overflow-y-scroll overflow-x-visible">
+                        <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
+                            :class="part.isGap ? 'm-1 px-2 py-1 bg-white text-black rounded-md cursor-pointer' : ''">
+                            {{ part.isGap ? `___` : part.text }}
+                        </span>
                     </div>
                 </div>
 
                 <!-- Black Card Editor -->
-                <div v-if="isCzar && roundStatus === 'round_start' && !blackCard"
-                    class="w-64 h-80 rounded-xl bg-black p-4 text-lg font-bold flex flex-col items-start justify-between">
-                    <div ref="draftEditor" tabindex="0" role="textbox" aria-multiline="true" aria-label="Create black card"
-                        class="draft-editor relative w-full h-full pb-2 outline-none overflow-auto whitespace-pre-wrap break-words text-white"
-                        @keydown="handleDraftKeydown" @paste="handleDraftPaste" @mousedown.prevent="handleDraftPointerDown"
-                        @focus="setDraftCursor(draftText.length)">
-                        <span v-if="!draftText" class="text-white/50">start writing...</span>
-                        <template v-else v-for="(part, index) in draftEditorParts" :key="`draft-editor-part-${index}`">
-                            <span v-if="part.type === 'caret'" class="draft-caret" aria-hidden="true"></span>
-                            <span v-else-if="part.type === 'gap'" class="draft-gap-token">___</span>
-                            <span v-else>{{ part.text }}</span>
-                        </template>
-                    </div>
+                <div v-if="isCzar && roundStatus === 'round_create_black_card' && !blackCard"
+                    class="w-full h-full max-h-[40dvh] max-w-md px-2">
+                    <CreativeEditorBlackCard @submit="(data: any) => submitBlackCard(data.text, data.number_of_gaps)" />
 
-                    <div class="w-full flex flex-row items-center justify-between">
-                        <Button @click="insertGap" :disabled="isSubmittingBlackCard" variant="primary" size="sm"
-                            class="rounded-lg h-10">Insert Gap</Button>
-                        <Button @click="submitBlackCard" :disabled="isSubmittingBlackCard" variant="primary" size="sm"
-                            class="rounded-lg h-10">{{ isSubmittingBlackCard ? 'Submitting...' : 'Submit' }}</Button>
-                    </div>
-                    <p v-if="blackCardDraftError" class="text-red-200 text-sm mt-2">{{ blackCardDraftError }}</p>
                 </div>
 
                 <!-- White Card Input -->
                 <div v-if="!isCzar && roundStatus === 'round_start' && !isWhiteCardsSubmitted && blackCard"
                     class="w-full max-w-2xl flex flex-col gap-3">
-                    <div v-for="(_, index) in numberOfCardsToPlay" :key="`white-input-${index}`" class="w-full">
-                        <input v-model="myChosenWhiteCards[index]" type="text" placeholder="Write your white card..."
-                            @focus="trackMyStatus('writing', roomId)" @blur="trackMyStatus(myPresenceStatus, roomId)"
-                            class="w-full bg-white border-2 border-black rounded-lg px-4 py-3 text-lg" />
-                    </div>
+                    <MyCreativeCarousel :items="creativeCarouselItems" @update-item-text="updateCreativeCardText"
+                        @focus-input="handleCreativeInputFocus" @blur-input="handleCreativeInputBlur" />
                 </div>
 
                 <!-- Czar Judging Carousel -->
@@ -710,7 +735,8 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
 
                 <!-- Winner Announcement -->
                 <div v-if="roundStatus === 'round_end'" class="w-full p-4">
-                    <div class="flex flex-row items-center justify-start gap-4 bg-gray-100 p-4 rounded-lg transition-all">
+                    <div
+                        class="flex flex-row items-center justify-start gap-4 bg-gray-100 p-4 rounded-lg transition-all">
                         <div v-for="(text, index) in winnerCards" :key="index"
                             class="relative w-full min-h-48 max-w-36 rounded-lg shadow-lg bg-white p-3 font-medium text-sm transition-all">
                             {{ text }}
@@ -729,7 +755,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
         <!-- Action Buttons -->
         <section name="action-buttons" v-if="gameStarted"
             class="fixed bottom-[max(env(safe-area-inset-bottom),1.5rem)] w-full flex flex-row items-center justify-center transition-all z-40">
-            <transition name="fade" mode="out-in">
+            <TransitionGroup name="fade">
                 <Button v-if="roundStatus === 'round_start' && !isCzar && !isWhiteCardsSubmitted" @click="submitCards"
                     :disabled="isSubmittingWhiteCards || !canSubmitWhiteCards" variant="primary" size="md"
                     class="rounded-xl" key="submit-cards">
@@ -745,12 +771,11 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
                     :disabled="isStartingNextRound" variant="primary" size="md" class="rounded-xl" key="next-round">
                     {{ isStartingNextRound ? 'Loading...' : 'Next Round' }}
                 </Button>
-            </transition>
-        </section>
-
-        <section v-if="roundStatus === 'round_end' && isGameMaster"
-            class="fixed bottom-[max(env(safe-area-inset-bottom),5rem)] w-full flex flex-row items-center justify-center z-40">
-            <Button @click="saveSet" variant="tertiary" size="md" class="rounded-xl">Save Set</Button>
+                <Button v-if="roundStatus === 'round_end' && isGameMaster" @click="saveSet" variant="tertiary" size="md"
+                    class="rounded-xl">
+                    Save Set
+                </Button>
+            </TransitionGroup>
         </section>
     </main>
 </template>
@@ -772,7 +797,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
     box-shadow: 0 0 0 2px rgb(254 202 202);
 }
 
-.preview > div {
+.preview>div {
     max-width: 100%;
     word-break: break-word;
 }
@@ -790,6 +815,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
     align-items: center;
     justify-content: center;
     padding: 0.08em 0.34em;
+    margin: 0 0.25em;
     min-width: 2.2em;
     border-radius: 0.45em;
     background: rgb(255 255 255 / 0.96);
@@ -801,7 +827,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
 
 .draft-caret {
     display: inline-block;
-    width: 1px;
+    width: 0.5px;
     height: 1em;
     margin: 0 1px;
     vertical-align: -0.1em;
@@ -810,6 +836,7 @@ const getWhiteCardTextAtGap = (gapIndex?: number) => {
 }
 
 @keyframes draft-caret-blink {
+
     0%,
     49% {
         opacity: 1;
