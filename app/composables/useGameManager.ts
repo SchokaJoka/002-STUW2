@@ -244,7 +244,6 @@ export function useGameManager() {
 
   async function handleRoundStart(currentMetaData: any) {
     winnerUserId.value = null;
-    myChosenWhiteCards.value = [];
     playerSubmissions.value = [];
 
     if (!roomId.value || !playerId.value) return;
