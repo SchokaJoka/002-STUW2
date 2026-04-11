@@ -151,7 +151,10 @@ Deno.serve(async (req: Request) => {
       try {
         // If this room has a saved collection configured, copy the submitted cards' text
         // into that collection so future submissions are stored automatically.
-        const savedCollectionId = (roomRow?.metadata?.saved_collection_id ??
+        // Prefer the room metadata loaded at function start (`roomData`) so inserts
+        // happen consistently like the black-card function.
+        const savedCollectionId = (roomData?.metadata?.saved_collection_id ??
+          roomRow?.metadata?.saved_collection_id ??
           null) as string | null;
         if (savedCollectionId) {
           const { data: cardRows, error: cardFetchErr } = await supabase
@@ -229,15 +232,21 @@ Deno.serve(async (req: Request) => {
       if (roomUpdateError) throw roomUpdateError;
 
       try {
-        // For creative-mode submissions (objects with text), also copy into saved collection if present
+        // For creative-mode submissions (objects with text or plain strings), also copy into saved collection if present.
+        // Prefer the original roomData.saved_collection_id so behavior matches submit_black_card.
         const savedCollectionIdCreative = (roomData?.metadata
           ?.saved_collection_id ?? null) as string | null;
         if (savedCollectionIdCreative) {
-          const cardsToInsert = (submitted_cards ?? []).map((c: any) => ({
-            text: c.text,
-            is_black: false,
-            collection_id: savedCollectionIdCreative,
-          }));
+          const cardsToInsert = (submitted_cards ?? [])
+            .map((c: any) => ({
+              text: typeof c === "string" ? c : c?.text,
+              is_black: false,
+              collection_id: savedCollectionIdCreative,
+            }))
+            .filter(
+              (r: any) =>
+                typeof r.text === "string" && r.text.trim().length > 0,
+            );
 
           if (cardsToInsert.length) {
             const { error: insertErr } = await supabase
