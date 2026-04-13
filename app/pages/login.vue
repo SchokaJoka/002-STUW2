@@ -5,7 +5,6 @@
         <div class="cursor-pointer" @click="navigateTo('/')">
           <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
         </div>
-        <p class="text-white text-4xl font-bold">Login</p>
       </div>
       <div class="w-full flex flex-row justify-center z-10">
         <div class="w-full flex flex-row z-10 max-w-3xl ">
@@ -322,7 +321,7 @@ onMounted(() => {
 <style scoped>
 .tab-fade-enter-active,
 .tab-fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease-in-out;
 }
 
 .tab-fade-enter-from {
