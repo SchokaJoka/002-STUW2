@@ -34,8 +34,8 @@ export function useGameManager() {
 
   const errorMessage = useState<string | null>("gameErrorMessage", () => null);
 
-  const roomId = useState<string | null>("gameManagerRoomId", () => null);
-  const playerId = useState<string | null>("gameManagerPlayerId", () => null);
+  const roomId = useState<string | null>("roomId", () => null);
+  const playerId = useState<string | null>("playerId", () => null);
 
   const myPresenceStatus = computed(() => {
     if (!gameStarted.value) {
@@ -69,6 +69,13 @@ export function useGameManager() {
         return "error_unknown_status";
     }
   });
+
+  const updateIfChanged = <T>(clientRef: Ref<T>, newValue: T) => {
+    if (clientRef.value !== newValue) {
+      clientRef.value = newValue;
+    }
+  };
+
 
   async function initializeGame(
     roomId: string,
@@ -198,21 +205,6 @@ export function useGameManager() {
   }
 
   async function handleGameStateChanges(currentMetaData: any) {
-    // Avoid processing unchanged metadata
-    const prev = gameState.value ?? null;
-    if (prev && JSON.stringify(prev) === JSON.stringify(currentMetaData)) {
-      console.warn(
-        "[HANDLEGAMESTATECHANGES] Ignoring duplicate metadata update",
-      );
-      return;
-    }
-
-    const updateIfChanged = <T>(clientRef: Ref<T>, newValue: T) => {
-      if (clientRef.value !== newValue) {
-        clientRef.value = newValue;
-      }
-    };
-
     updateIfChanged(blackCard, currentMetaData.black_card ?? null);
     updateIfChanged(gameState, currentMetaData);
     updateIfChanged(roundStatus, currentMetaData.round_status);
@@ -232,28 +224,13 @@ export function useGameManager() {
         await handleRoundEnd(currentMetaData);
         break;
       case "lobby":
-        // Cleanup local game state when returning to lobby
-        winnerUserId.value = null;
-        winnerUsername.value = "";
-        winnerCards.value = [];
-        playerSubmissions.value = [];
-        blackCard.value = null;
-        myChosenWhiteCards.value = [];
-        updateIfChanged(gameStarted, false as any);
-        try {
-          const route = useRoute();
-          const roomCode = String(route.params.roomCode ?? "");
-          if (roomCode) navigateTo(`/play/${roomCode}/lobby`);
-        } catch (e) {
-          // ignore if route/navigate not available in this context
-        }
+        handleLobby(currentMetaData);
         break;
       default:
         console.error("Unknown round status:", currentMetaData.round_status);
     }
 
     if (roomId.value) {
-      console.log("[TRACKMYSTATUS]");
       await trackMyStatus(myPresenceStatus.value, roomId.value);
     }
   }
@@ -280,8 +257,6 @@ export function useGameManager() {
   }
 
   async function handleRoundSubmitted(currentMetaData: any) {
-    winnerUserId.value = null;
-
     const czarId = gameState.value?.czar_id;
     if (!czarId || !roomId.value || !playerId.value) return;
 
@@ -324,6 +299,21 @@ export function useGameManager() {
       currentMetaData.current_winner?.metadata?.submitted_cards;
   }
 
+  async function handleLobby(currentMetaData: any) {
+        myChosenWhiteCards.value = [];
+        try {
+          const route = useRoute();
+          const roomCode = String(route.params.roomCode ?? "");
+          if (roomCode) {
+            navigateTo(`/play/${roomCode}/lobby`)
+          } else {
+            throw new Error("Cannot Navigate to Lobby! roomCode not defined.")
+          };
+        } catch (e) {
+          console.error("Error navigating to lobby:", e);
+        }
+  }
+
   async function trackMyStatus(myPresenceStatus: string, roomId: string) {
     if (!user.value) return;
 
@@ -351,8 +341,6 @@ export function useGameManager() {
     winnerUserId,
     winnerUsername,
     winnerCards,
-    gameManagerRoomId: roomId,
-    gameManagerPlayerId: playerId,
 
     // Functions
     trackMyStatus,

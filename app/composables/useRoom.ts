@@ -242,8 +242,6 @@ export function useRoom() {
         .map((arr: any) => arr?.[0])
         .filter(Boolean)
         .sort((a: any, b: any) => (a?.joined_at ?? 0) - (b?.joined_at ?? 0));
-
-      console.log("[PRESENCE] Sync - Current players:", players.value);
     });
 
     gameChannel.value.on(

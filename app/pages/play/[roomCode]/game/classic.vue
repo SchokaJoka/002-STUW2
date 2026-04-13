@@ -9,8 +9,8 @@ const user = useSupabaseUser();
 const supabase = useSupabaseClient();
 
 const route = useRoute();
-const roomId = ref<string>("");
-const playerId = ref<string>("");
+const roomId = useState<string | null>("roomId", () => null);
+const playerId = useState<string | null>("playerId", () => null);
 
 const roomCode = ref<string>("");
 
@@ -49,36 +49,12 @@ const {
   enterRoom,
   deletePlayerFromRoomTable,
   markMemberInactive,
-  setupBroadcastListeners,
   loadInitialHandCards,
   leaveRoomRealtime,
   setRoomRoundStatus,
 } = useRoom();
 
 const showLeaveConfirm = ref(false);
-
-async function handleLeaveConfirmed() {
-  showLeaveConfirm.value = false;
-  await deletePlayerFromRoomTable(roomId.value, playerId.value);
-  navigateTo('/');
-}
-
-async function handleBackToLobbyConfirmed() {
-  showLeaveConfirm.value = false;
-  if (!roomId.value) return;
-  try {
-    const { data, error } = await supabase.functions.invoke("initialize_game", {
-      method: "POST",
-      body: { room_id: roomId.value, action: "back_to_lobby" },
-    });
-    if (error) console.error("[EDGE] back_to_lobby error:", error);
-    else console.log("[EDGE] back_to_lobby", data);
-  } catch (err) {
-    console.error("Error invoking initialize_game back_to_lobby:", err);
-  }
-
-  navigateTo(`/play/${route.params.roomCode}/lobby`);
-}
 
 const {
   // Variables
@@ -91,8 +67,6 @@ const {
   winnerUserId,
   winnerUsername,
   winnerCards,
-  gameManagerRoomId,
-  gameManagerPlayerId,
 
   // Functions
   initializeGame,
@@ -116,6 +90,10 @@ const isCzar = useState<boolean>("isCzar", () => false);
 
 watch([playerId, czarId], () => {
   isCzar.value = !!playerId.value && playerId.value === czarId.value;
+});
+
+watch([playerId, gameMasterId], ([nextPlayerId, nextGameMasterId]) => {
+    isGameMaster.value = !!nextPlayerId && nextGameMasterId === nextPlayerId;
 });
 
 const numberOfCardsToPlay = computed(() => {
@@ -379,9 +357,6 @@ onMounted(async () => {
     return;
   }
 
-  // Set the gameManager's roomId
-  gameManagerRoomId.value = roomId.value;
-
   // Load room metadata only after roomId is known
   const roomMetadata = await getRoomMetadata(roomId.value);
 
@@ -397,9 +372,6 @@ onMounted(async () => {
     console.error("Missing player ID");
     return;
   }
-
-  // Set the gameManager's playerId
-  gameManagerPlayerId.value = playerId.value;
 
   const { data: room } = await supabase
     .from("rooms")
@@ -455,6 +427,19 @@ onBeforeRouteLeave((to) => {
 });
 
 onUnmounted(async () => {
+  console.log("Unmounting game component, leaving room/channel if necessary.");
+
+  blackCard.value = null;
+  playerSubmissions.value = [];
+  winnerUserId.value = null;
+  winnerUsername.value = "";
+  winnerCards.value = [];
+  playerHandCards.value = [];
+  myChosenWhiteCards.value = [];
+  selectedPlayerSubmission.value = null;
+  isWhiteCardsSubmitted.value = false;
+  isChoosingWinner.value = false;
+
   if (!isLeaving.value && roomId.value && playerId.value) {
     await markMemberInactive(roomId.value, playerId.value);
   }
@@ -519,6 +504,29 @@ const deleteWhiteCardAtGap = (gapIndex?: number) => {
   myChosenWhiteCards.value.splice(gapIndex, 1);
 };
 // ============================================================
+
+async function handleLeaveConfirmed() {
+  showLeaveConfirm.value = false;
+  await deletePlayerFromRoomTable(roomId.value, playerId.value);
+  navigateTo('/');
+}
+
+async function handleBackToLobbyConfirmed() {
+  showLeaveConfirm.value = false;
+  if (!roomId.value) return;
+  try {
+    const { data, error } = await supabase.functions.invoke("end_game_go_back_to_lobby", {
+      method: "POST",
+      body: { room_id: roomId.value}
+    });
+    if (error) console.error("[EDGE] end_game_go_back_to_lobby error:", error);
+    else console.log("[EDGE] end_game_go_back_to_lobby", data);
+  } catch (err) {
+    console.error("Error invoking end_game_go_back_to_lobby:", err);
+  }
+
+  navigateTo(`/play/${route.params.roomCode}/lobby`);
+}
 
 // DEV DEBUGGING
 // ============================================================

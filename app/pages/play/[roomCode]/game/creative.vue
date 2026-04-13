@@ -7,7 +7,7 @@ const user = useSupabaseUser();
 const supabase = useSupabaseClient();
 
 const route = useRoute();
-const roomId = ref<string>("");
+const roomId = useState<string | null>("roomId", () => null);
 const playerId = ref<string>("");
 const roomCode = ref<string>("");
 
@@ -40,7 +40,6 @@ const {
     enterRoom,
     deletePlayerFromRoomTable,
     markMemberInactive,
-    trackMyStatus,
     leaveRoomRealtime,
     setRoomRoundStatus,
 } = useRoom();
@@ -54,8 +53,6 @@ const {
     winnerUserId,
     winnerUsername,
     winnerCards,
-    gameManagerRoomId,
-    gameManagerPlayerId,
     initializeNextRound,
     handleGameStateChanges,
 } = useGameManager();
@@ -360,14 +357,14 @@ async function handleBackToLobbyConfirmed() {
     showLeaveConfirm.value = false;
     if (!roomId.value) return;
     try {
-        const { data, error } = await supabase.functions.invoke("initialize_game", {
+        const { data, error } = await supabase.functions.invoke("end_game_go_back_to_lobby", {
             method: "POST",
-            body: { room_id: roomId.value, action: "back_to_lobby" },
+            body: { room_id: roomId.value }
         });
-        if (error) console.error("[EDGE] back_to_lobby error:", error);
-        else console.log("[EDGE] back_to_lobby", data);
+        if (error) console.error("[EDGE] end_game_go_back_to_lobby error:", error);
+        else console.log("[EDGE] end_game_go_back_to_lobby", data);
     } catch (err) {
-        console.error("Error invoking initialize_game back_to_lobby:", err);
+        console.error("Error invoking end_game_go_back_to_lobby:", err);
     }
 
     navigateTo(`/play/${roomCode.value}/lobby`);
@@ -432,6 +429,16 @@ onBeforeRouteLeave((to) => {
 });
 
 onUnmounted(async () => {
+    blackCard.value = null;
+    playerSubmissions.value = [];
+    winnerUserId.value = null;
+    winnerUsername.value = "";
+    winnerCards.value = [];
+    myChosenWhiteCards.value = [];
+    selectedPlayerSubmission.value = null;
+    isWhiteCardsSubmitted.value = false;
+    isChoosingWinner.value = false;
+    
     if (!isLeaving.value && roomId.value && playerId.value) {
         await markMemberInactive(roomId.value, playerId.value);
     }

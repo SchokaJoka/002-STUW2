@@ -20,18 +20,14 @@ function onSaveSet() { emit('save-set'); }
 
 <template>
     <transition name="fade">
-        <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div class="bg-white rounded-lg p-5 max-w-md w-full mx-4">
-                <div class="text-lg font-semibold mb-2">Are you sure?</div>
-                <p class="text-sm mb-4">Leaving will remove you from the game.</p>
-                <div class="flex flex-wrap gap-2">
-                    <button @click="onLeave" class="px-4 py-2 rounded bg-red-600 text-white">Leave Game</button>
-                    <button v-if="isGameMaster" @click="onBackToLobby"
-                        class="px-4 py-2 rounded bg-blue-600 text-white">Back to Lobby</button>
-                    <button v-if="isGameMaster && roundStatus === 'round_end' && !savedCollectionId" @click="onSaveSet"
-                        class="px-4 py-2 rounded bg-amber-500 text-black">Save Set</button>
-                    <button @click="onBackdrop" class="px-4 py-2 rounded border">Cancel</button>
-                </div>
+        <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center text-black bg-white">
+            <div class="p-5 max-w-md w-full h-full flex flex-col gap-4 items-center justify-center">
+                <div class="text-lg font-semibold">Are you sure?</div>
+                <p class="text-sm">Leaving will remove you from the game.</p>
+                <Button variant="danger" size="lg" block @click="onLeave">Leave Game</Button>
+                <Button v-if="isGameMaster" variant="primary" size="lg" block @click="onBackToLobby">Back to Lobby</Button>
+                <Button v-if="isGameMaster && roundStatus === 'round_end' && !savedCollectionId" variant="tertiary" size="lg" block @click="onSaveSet">Save Set</Button>
+                <Button variant="ghost" size="lg" block @click="onBackdrop">Cancel</Button>
             </div>
         </div>
     </transition>

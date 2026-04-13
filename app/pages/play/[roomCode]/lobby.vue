@@ -10,7 +10,7 @@ const isJoiningGame = ref(false);
 
 const route = useRoute();
 const roomId = ref<string | null>(null);
-const playerId = ref<string>("");
+const playerId = useState<string | null>("playerId", () => null);
 const gameMasterId = useState<string | null>("gameMasterId", () => null);
 const isGameMaster = useState<boolean>("isGameMaster", () => false);
 
@@ -228,6 +228,11 @@ onUnmounted(async () => {
     console.info("[Lobby] Unmounted, performing cleanup");
     await leaveRoomRealtime();
   }
+
+  gameMasterId.value = null;
+  playerId.value = null;
+  isGameMaster.value = false;
+  roomId.value = null;
 });
 // ============================================================
 // UTILITIES
