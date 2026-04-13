@@ -85,11 +85,11 @@
                 </Button>
 
                 <p v-if="errorMessage"
-                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded bg-red-100 text-red-700">
+                  class="w-full px-4 py-2 mb-4 border-[3px] rounded bg-red-100 text-red-700">
                   {{ errorMessage }}
                 </p>
                 <p v-if="successMessage"
-                  class="w-full px-4 py-2 mb-4 border border-[3px] rounded bg-green-100 text-green-700">
+                  class="w-full px-4 py-2 mb-4 border-[3px] rounded bg-green-100 text-green-700">
                   {{ successMessage }}
                 </p>
               </div>

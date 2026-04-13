@@ -1,9 +1,9 @@
 <template>
-  <main class="w-full flex items-center justify-center">
+  <main class="w-full flex items-center justify-center bg-black text-white">
     <header ref="headerEl" class="fixed top-0 w-full flex items-center justify-start p-4 z-40">
-      <div class="cursor-pointer" @click="handleMenuToggle">
+      <div v-if="!isMenuOpen" class="cursor-pointer" @click="handleMenuToggle">
         <svg xmlns="http://www.w3.org/2000/svg" width="29" height="24" viewBox="0 0 29 24"
-          class="stroke-black stroke-[4]">
+          class="stroke-white stroke-[4]">
           <line y1="2" x2="29" y2="2" />
           <line y1="12" x2="29" y2="12" />
           <line y1="22" x2="29" y2="22" />
@@ -12,67 +12,63 @@
     </header>
 
     <!-- Menu overlay -->
-    <div class="fixed inset-0 z-20" :class="isMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'">
+    <div class="fixed inset-0 z-50" :class="isMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'">
       <div class="absolute inset-0 bg-black/40 transition-opacity duration-300"
         :class="isMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'" @click="closeMenu" />
 
       <aside
-        class="absolute left-0 top-0 h-dvh w-64 flex flex-col bg-neutral-50 shadow-lg transition-transform duration-300 ease-out"
+        class="absolute left-0 top-0 h-dvh w-64 flex flex-col bg-[#FFB077] text-black shadow-lg transition-transform duration-300 ease-out"
         :class="isMenuOpen ? 'translate-x-0' : '-translate-x-full'">
         <div class="flex items-center justify-between p-4">
-          <div class="h-[24px]"></div>
+          <div class="h-[24px] w-full flex flex-row justify-end items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+              class="stroke-black stroke-[4] cursor-pointer" @click="handleMenuToggle">
+              <line x1="3" y1="3" x2="21" y2="21" />
+              <line x1="21" y1="3" x2="3" y2="21" />
+            </svg>
+          </div>
         </div>
 
         <nav class="flex flex-col gap-2 h-full justify-between">
           <div class="flex flex-col gap-2">
-            <button v-if="!user || user.is_anonymous" class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal"
+            <button v-if="!user || user.is_anonymous" class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
               @click="handleAuthAction">
               Log in
             </button>
-            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal"
+            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
               @click="goToProfile">
               Profile
             </button>
-            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal" @click="navigateTo('/sets')">
+            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all" @click="navigateTo('/sets')">
               Sets
             </button>
-            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-gray-100 text-2xl font-normal"
+            <button v-if="user && !user.is_anonymous" class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
               @click="handleAuthAction">
               Logout
             </button>
           </div>
-          <div v-if="user" class="flex flex-col gap-2 p-4">
+          <div v-if="user" class="p-4 w-full">
             <div v-if="editingGuestName"
-              class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black text-lg font-normal">
+              class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-white rounded-lg border-[3px] border-black text-lg font-normal">
               <div class="w-full flex flex-row items-center justify-between gap-1">
                 <input v-model="guestNameEdit" type="text"
                   class="w-full py-4 pl-4 bg-transparent outline-none border-0 focus:ring-0" @blur="saveGuestName"
                   @keyup.enter="saveGuestName" ref="guestNameInput" />
-                <div class="flex items-center px-4 h-full bg-neutral-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="black">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
+                <div class="flex items-center h-full px-4 bg-black">
+                  <img src="~/assets/svg/boxicons_pencil-filled.svg" alt="Edit name" class="h-10 w-10" />
                 </div>
               </div>
             </div>
             <div v-else
-              class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-neutral-50 rounded-lg border-[3px] border-black">
-              <button @click="startEditGuestName"
-                class="w-full flex flex-row items-center justify-between gap-1 cursor-pointer hover:text-grey-500">
-                <span class="py-4 pl-4 text-lg font-normal">
+              class="flex flex-row gap-2 items-stretch h-fit overflow-clip bg-white rounded-lg border-[3px] border-black text-lg font-normal">
+              <div class="w-full flex flex-row items-center justify-between gap-1 cursor-pointer" @click="startEditGuestName">
+                <span class="w-full py-4 pl-4 truncate">
                   {{ user?.user_metadata?.full_name || "Guest" }}
                 </span>
-                <div class="flex items-center px-4 h-full bg-neutral-400 h-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="black">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
+                <div class="flex items-center h-full px-4 bg-black">
+                  <img src="~/assets/svg/boxicons_pencil-filled.svg" alt="Edit name" class="h-10 w-10" />
                 </div>
-              </button>
-              <!-- <span>(Guest)</span> -->
+              </div>
             </div>
           </div>
         </nav>
@@ -87,20 +83,20 @@
       <div class="flex flex-col items-center justify-center w-full gap-8"
         :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
         <div class="w-full flex flex-row gap-4 flex-wrap items-end justify-between">
-          <h1 class="h-fit text-black text-4xl font-normal">
+          <h1 class="h-fit text-4xl font-normal">
             Cards against Waldo *uwu*
           </h1>
           <img class="rounded-2xl size-32" src="https://www.nicepng.com/png/full/196-1967754_wheres-wally-wally-run-wheres-waldo-face.png" alt="Waldo haha">
         </div>
-        <Button @click="createGame()" variant="primary" size="lg" block class="rounded-xl">Create Game</Button>
-        <Button @click="joinGame()" variant="primary" size="lg" block class="rounded-xl">Join Game</Button>
+        <Button @click="createGame()" variant="primary" size="lg" block class="">Create Game</Button>
+        <Button @click="joinGame()" variant="primary" size="lg" block class="">Join Game</Button>
       </div>
 
       <!-- How To Play -->
       <div class="flex flex-col gap-1 justify-center"
         :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
-        <h1 class="w-full h-fit text-black text-4xl font-normal">How to Play</h1>
-        <ul class="w-full h-fit text-black text-xl font-normal px-4 list-disc list-outside pl-6">
+        <h1 class="w-full h-fit text-4xl font-normal">How to Play</h1>
+        <ul class="w-full h-fit text-xl font-normal px-4 list-disc list-outside pl-6">
           <li>Each player starts with a hand of 10 white cards.</li>
           <li>A black card is chosen at random and displayed to all players.</li>
           <li>

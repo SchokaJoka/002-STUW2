@@ -44,4 +44,8 @@ useHead({
   opacity: 0;
   transform: translateY(12px);
 }
+
+:global(body) {
+  background-color: #000;
+}
 </style>

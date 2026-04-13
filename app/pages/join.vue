@@ -66,7 +66,7 @@
             <div class="w-full flex flex-row items-center justify-between cursor-pointer">
               <input v-model="roomCodeInput" placeholder="X4DD" type="text"
                 class="w-full py-4 px-4 text-3xl font-normal" @keyup.enter="joinRoom" />
-              <div @click="joinRoom" class="flex items-center px-8 h-full bg-neutral-200 h-full">
+              <div @click="joinRoom" class="flex items-center px-8 bg-neutral-200 h-full">
                 <span class="text-black text-md font-normal">Join</span>
               </div>
             </div>

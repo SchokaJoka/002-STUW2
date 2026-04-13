@@ -77,13 +77,13 @@ watch(currentBlackCardText, () => {
         </div>
         <div class="w-full flex flex-row gap-2">
             <Button v-if="!currentBlackCardText[currentBlackCardText.length - 1]?.isGap" @click="insertGap()"
-                variant="primary" size="sm" block class="rounded-xl">Insert Gap</Button>
+                variant="primary" size="sm" block class="">Insert Gap</Button>
             <Button v-if="currentBlackCardText[currentBlackCardText.length - 1]?.isGap" @click="insertText()"
-                variant="primary" size="sm" block class="rounded-xl">Insert Text</Button>
+                variant="primary" size="sm" block class="">Insert Text</Button>
             <Button v-if="currentBlackCardText.length" @click="deleteLast()" variant="primary" size="sm" block
-                class="rounded-xl">Delete Last</Button>
+                class="">Delete Last</Button>
             <Button v-if="currentBlackCardText.length > 1" @click="submitBlackCard()" variant="tertiary" size="sm" block
-                class="rounded-xl">Submit</Button>
+                class="">Submit</Button>
         </div>
 
     </div>

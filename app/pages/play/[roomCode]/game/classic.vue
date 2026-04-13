@@ -576,9 +576,9 @@ const dev2gaps = ref(false);
         <LeaveConfirmOverlay :show="showLeaveConfirm" :is-game-master="isGameMaster" :round-status="roundStatus"
           @close="showLeaveConfirm = false" @leave="handleLeaveConfirmed" @back-to-lobby="handleBackToLobbyConfirmed" />
         <Button v-if="!isCzar || roundStatus !== 'round_end'" @click="showLeaveConfirm = true" variant="primary"
-          size="md" class="rounded-xl">Leave</Button>
+          size="md" class="">Leave</Button>
         <Button v-if="isCzar && roundStatus === 'round_end'" @click="initializeNextRound(roomId)" variant="primary"
-          size="md" class="rounded-xl">Continue</Button>
+          size="md" class="">Continue</Button>
       </div>
       <div class="w-full flex flex-row gap-2">
         <div class="w-full text-center font-medium text-md transition-all">
@@ -699,7 +699,7 @@ const dev2gaps = ref(false);
         <transition name="fade" mode="out-in">
           <Button v-if="roundStatus === 'round_start' && !isCzar && !isWhiteCardsSubmitted" @click="submitCards()"
             :disabled="isSubmittingWhiteCards || myChosenWhiteCards.length !== numberOfCardsToPlay" variant="primary"
-            size="md" class="rounded-xl" key="submit-cards">
+            size="md" class="" key="submit-cards">
             {{
               isSubmittingWhiteCards
                 ? "Submitting..."
@@ -710,7 +710,7 @@ const dev2gaps = ref(false);
           </Button>
           <Button v-else-if="roundStatus === 'round_submitted' && isCzar"
             @click="submitWinner(selectedPlayerSubmission)" :disabled="isChoosingWinner" variant="primary" size="md"
-            class="rounded-xl" key="choose-winner">
+            class="" key="choose-winner">
             {{
               isChoosingWinner
                 ? "Choosing..."
@@ -718,7 +718,7 @@ const dev2gaps = ref(false);
             }}
           </Button>
           <Button v-else-if="roundStatus === 'round_end' && isCzar" @click="initializeNextRound(roomId)"
-            :disabled="isStartingNextRound" variant="primary" size="md" class="rounded-xl" key="next-round">
+            :disabled="isStartingNextRound" variant="primary" size="md" class="" key="next-round">
             {{
               isStartingNextRound
                 ? "Loading..."
