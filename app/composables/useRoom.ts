@@ -14,6 +14,10 @@ export function useRoom() {
     "gameChannel",
     () => null,
   );
+  const hasBoundRoomListeners = useState<boolean>(
+    "hasBoundRoomListeners",
+    () => false,
+  );
 
   const gameMasterId = useState<string>("gameMasterId", () => "");
   const { updatePlayerScoreFromMember } = usePlayerScores();
@@ -173,18 +177,26 @@ export function useRoom() {
     roomId: string,
     roomCode: string,
     playerId: string,
-    initialStatus: string | null,
-    onNavigateToGame?: (payload: any) => void,
   ) {
     await joinRoom(roomCode, playerId);
     await insertPlayerInRoomTable(roomId, playerId);
-    await setupBroadcastListeners(roomId, playerId, onNavigateToGame);
+    await setupBroadcastListeners(roomId, playerId);
 
-    gameChannel.value?.subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        await trackMyPresence();
+    if (gameChannel.value) {
+      const state = (gameChannel.value as any).state;
+      if (state !== "joined" && state !== "joining") {
+        gameChannel.value.subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            await trackMyPresence();
+          }
+        });
       }
-    });
+    }
+
+    const isJoined = await ensureChannelSubscribed();
+    if (!isJoined) {
+      console.warn("[useRoom] Channel did not reach SUBSCRIBED state.");
+    }
   }
 
   async function insertPlayerInRoomTable(roomId: string, playerId: string) {
@@ -208,9 +220,22 @@ export function useRoom() {
   }
 
   async function joinRoom(roomCode: string, playerId: string) {
-    // Reuse existing channel if it already targets the same room
+    // Reuse existing channel only when it targets the same room and is healthy
     if (gameChannel.value && (gameChannel.value as any).topic === roomCode) {
-      return;
+      const state = (gameChannel.value as any).state;
+      if (state === "joined" || state === "joining") {
+        return;
+      }
+
+      try {
+        const stale = gameChannel.value;
+        await stale.unsubscribe();
+        await supabase.removeChannel(stale);
+      } catch (err) {
+        console.error("[useRoom] Error removing stale room channel:", err);
+      }
+      gameChannel.value = null;
+      hasBoundRoomListeners.value = false;
     }
 
     // If we have a different channel, clean it up
@@ -223,6 +248,7 @@ export function useRoom() {
         console.error("[useRoom] Error removing existing channel:", err);
       }
       gameChannel.value = null;
+      hasBoundRoomListeners.value = false;
     }
 
     // Create a new channel for this room (topic must match server broadcasts)
@@ -234,22 +260,56 @@ export function useRoom() {
       console.error("Failed to join game channel.");
       return;
     }
+
+    hasBoundRoomListeners.value = false;
+  }
+
+  async function ensureChannelSubscribed(): Promise<boolean> {
+    if (!gameChannel.value) {
+      console.error("[useRoom] No game channel to subscribe to.");
+      return false;
+    }
+
+    const state = (gameChannel.value as any).state;
+    if (state === "joined") {
+      await trackMyPresence();
+      return true;
+    }
+
+    const timeoutMs = 5000;
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const currentState = (gameChannel.value as any)?.state;
+      if (currentState === "joined") return true;
+      if (currentState === "closed" || currentState === "errored") {
+        console.error("Channel subscription failed with state:", currentState);
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    return (gameChannel.value as any)?.state === "joined";
   }
 
   async function setupBroadcastListeners(
     roomId: string,
     playerId: string,
-    onNavigateToGame?: (payload: any) => void,
   ) {
     // Validation
-    if (gameChannel.value === null && !user.value) {
+    const channel = gameChannel.value;
+    if (!channel || !user.value) {
       console.error("[useRoom.ts] Game channel or user not initialized.");
       return;
     }
 
+    if (hasBoundRoomListeners.value) {
+      return;
+    }
+
     // PRESENCE SYNC
-    gameChannel.value.on("presence", { event: "sync" }, () => {
-      const state = gameChannel.value.presenceState() ?? {};
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState() ?? {};
 
       players.value = Object.values(state)
         .map((arr: any) => arr?.[0])
@@ -257,7 +317,7 @@ export function useRoom() {
         .sort((a: any, b: any) => (a?.joined_at ?? 0) - (b?.joined_at ?? 0));
     });
 
-    gameChannel.value.on(
+    channel.on(
       "broadcast",
       { event: "lobby_settings_updated" },
       async (payload) => {
@@ -268,19 +328,19 @@ export function useRoom() {
     );
 
     // navigate_to_game (only register in lobby context)
-    if (onNavigateToGame) {
-      gameChannel.value.on(
-        "broadcast",
-        { event: "navigate_to_game" },
-        (payload) => {
-          console.log("[BROADCAST] navigate_to_game:", payload);
-          onNavigateToGame(payload);
-        },
-      );
-    }
+    channel.on(
+      "broadcast",
+      { event: "navigate_to_game" },
+      (payload) => {
+        console.log("[BROADCAST] navigate_to_game:", payload);
+        const mode = payload?.payload?.mode ?? "classic";
+        navigateTo(`/play/${payload.payload.roomCode}/game/${mode}`);
+      },
+    );
+
 
     // POSTGRES CHANGES - hand_cards (automatic sync)
-    gameChannel.value?.on(
+    channel.on(
       "postgres_changes",
       {
         event: "*",
@@ -315,7 +375,7 @@ export function useRoom() {
     );
 
     // POSTGRES CHANGES - room_members status updates
-    gameChannel.value?.on(
+    channel.on(
       "postgres_changes",
       {
         event: "UPDATE",
@@ -343,7 +403,7 @@ export function useRoom() {
 
     // game_initialize
     // ...existing code...
-    gameChannel.value.on(
+    channel.on(
       "broadcast",
       { event: "game_initialize" },
       async (body) => {
@@ -376,14 +436,14 @@ export function useRoom() {
     );
 
     // game_start
-    gameChannel.value.on("broadcast", { event: "game_start" }, () => {
+    channel.on("broadcast", { event: "game_start" }, () => {
       console.log("[BROADCAST] game_start");
       /*       gameStarted.value = true;
        */
     });
 
     // round_submitted (fallback refresh)
-    gameChannel.value.on(
+    channel.on(
       "broadcast",
       { event: "round_submitted" },
       async (body) => {
@@ -392,7 +452,7 @@ export function useRoom() {
     );
 
     // Realtime table listeners (after channel is created)
-    gameChannel.value?.on(
+    channel.on(
       "postgres_changes",
       {
         event: "UPDATE",
@@ -408,6 +468,8 @@ export function useRoom() {
         handleGameStateChanges(payload.new.metadata);
       },
     );
+
+    hasBoundRoomListeners.value = true;
   }
 
   async function leaveRoomRealtime() {
@@ -423,6 +485,7 @@ export function useRoom() {
         console.error("[useRoom] Error during channel cleanup:", error);
       }
     }
+    hasBoundRoomListeners.value = false;
     // Thorough cleanup as requested
     await supabase.removeAllChannels();
   }
@@ -472,6 +535,7 @@ export function useRoom() {
     markMemberInactive,
     trackMyPresence,
     setupBroadcastListeners,
+    ensureChannelSubscribed,
     loadInitialHandCards,
     leaveRoomRealtime,
     setRoomRoundStatus,

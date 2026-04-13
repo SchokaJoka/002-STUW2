@@ -261,7 +261,9 @@ async function submitCards() {
 
         // Ensure frontend reflects DB state (in case of race when pool is rebuilt)
         try {
-          await loadInitialHandCards(roomId.value, playerId.value);
+          if (roomId.value && playerId.value) {
+            await loadInitialHandCards(roomId.value, playerId.value);
+          }
         } catch (e) {
           console.warn("Failed to reload hand cards after submit:", e);
         }
@@ -393,13 +395,13 @@ onMounted(async () => {
     .select("owner")
     .eq("id", roomId.value)
     .single();
-  gameMasterId.value = room?.owner ?? null;
+  gameMasterId.value = room?.owner ?? "";
 
   await syncPlayerScoresForRoom(roomId.value);
 
   if (!gameChannel.value) {
     console.warn("gameChannel not exists, rejoining");
-    enterRoom(roomId.value, roomCode.value, playerId.value, "waiting");
+    enterRoom(roomId.value, roomCode.value, playerId.value);
 
   }
 
@@ -458,6 +460,8 @@ onUnmounted(async () => {
   if (!isLeaving.value && roomId.value && playerId.value) {
     await markMemberInactive(roomId.value, playerId.value);
   }
+
+  await leaveRoomRealtime();
 
 });
 // ============================================================
@@ -522,7 +526,9 @@ async function handleLeaveConfirmed() {
 
   isLeavingGame.value = true;
   try {
-    await deletePlayerFromRoomTable(roomId.value, playerId.value);
+    if (roomId.value && playerId.value) {
+      await deletePlayerFromRoomTable(roomId.value, playerId.value);
+    }
     await leaveRoomRealtime();
     navigateTo('/');
   } finally {

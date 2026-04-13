@@ -60,8 +60,8 @@ const {
   deletePlayerFromRoomTable,
   insertPlayerInRoomTable,
   markMemberInactive,
-  trackMyStatus,
   setupBroadcastListeners,
+  ensureChannelSubscribed,
   leaveRoomRealtime,
 } = useRoom();
 
@@ -161,10 +161,16 @@ async function startGame() {
   }
 }
 
-function setLobbySettings(newVal: "classic" | "creative") {
+async function setLobbySettings(newVal: "classic" | "creative") {
   selectedGameMode.value = newVal;
 
-  gameChannel.value?.send({
+  const isJoined = await ensureChannelSubscribed();
+  if (!isJoined) {
+    console.warn("[Lobby] Skipping lobby_settings_updated broadcast because channel is not joined.");
+    return;
+  }
+
+  await gameChannel.value?.send({
     type: "broadcast",
     event: "lobby_settings_updated",
     payload: {
@@ -214,11 +220,7 @@ onMounted(async () => {
     .single();
   gameMasterId.value = room?.owner ?? null;
 
-  await enterRoom(roomId.value, roomCode.value, playerId.value, null, (payload: any) => {
-    isJoiningGame.value = true;
-    const mode = payload?.payload?.mode ?? "classic";
-    navigateTo(`/play/${payload.payload.roomCode}/game/${mode}`);
-  });
+  await enterRoom(roomId.value, roomCode.value, playerId.value);
 
   collections.value = await getCardCollections();
   if (collections.value.length > 0) {
@@ -240,14 +242,12 @@ onBeforeRouteLeave((to) => {
 });
 
 onUnmounted(async () => {
-  if (!isLeaving.value && roomId.value) await markMemberInactive(roomId.value, playerId.value);
-
-  if (isJoiningGame.value) {
-    console.info("[Lobby] Unmounted while joining game, skipping cleanup");
-  } else {
-    console.info("[Lobby] Unmounted, performing cleanup");
-    await leaveRoomRealtime();
+  if (!isLeaving.value && roomId.value && playerId.value) {
+    await markMemberInactive(roomId.value, playerId.value);
   }
+
+  console.info("[Lobby] Unmounted, performing cleanup");
+  await leaveRoomRealtime();
 
   gameMasterId.value = null;
   playerId.value = null;
@@ -289,6 +289,14 @@ async function shareRoomCode() {
   }
 }
 
+function handleBackFromLobby() {
+  if (roomId.value && playerId.value) {
+    deletePlayerFromRoomTable(roomId.value, playerId.value);
+    return;
+  }
+  navigateTo('/');
+}
+
 // ============================================================
 
 // DEV DEBUGGING
@@ -302,7 +310,7 @@ const dev2gaps = ref(true);
     <!-- Header -->
     <header ref="headerEl" class="fixed top-0 w-full flex items-center justify-start p-4 bg-black z-40">
       <div class="w-full flex flex-row gap-4 items-center">
-        <div class="cursor-pointer" @click="roomId ? deletePlayerFromRoomTable(roomId, playerId) : navigateTo('/')">
+        <div class="cursor-pointer" @click="handleBackFromLobby()">
           <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
         </div>
         <p class="w-full text-4xl font-bold">

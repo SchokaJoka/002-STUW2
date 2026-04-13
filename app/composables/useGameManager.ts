@@ -76,6 +76,27 @@ export function useGameManager() {
     }
   };
 
+  async function ensureGameChannelJoined(): Promise<boolean> {
+    if (!gameChannel.value) return false;
+
+    const state = (gameChannel.value as any).state;
+    if (state === "joined") return true;
+
+    const timeoutMs = 5000;
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const currentState = (gameChannel.value as any)?.state;
+      if (currentState === "joined") return true;
+      if (currentState === "closed" || currentState === "errored") {
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    return (gameChannel.value as any)?.state === "joined";
+  }
+
   async function initializeGame(
     roomId: string,
     roomCode: string,
@@ -88,10 +109,10 @@ export function useGameManager() {
         //display error message on html page that at least 2 players are required
         errorMessage.value =
           "At least 2 players are required to start the game.";
-      return;
+      return false;
     }
 
-    if (isStartingGame.value) return;
+    if (isStartingGame.value) return false;
     isStartingGame.value = true;
 
     try {
@@ -143,7 +164,14 @@ export function useGameManager() {
     } catch (e) {
       console.error("Error invoking initialize_game:", e);
       isStartingGame.value = false;
-      return;
+      return false;
+    }
+
+    const isJoined = await ensureGameChannelJoined();
+    if (!isJoined) {
+      errorMessage.value = "Realtime channel is not connected. Please try again.";
+      isStartingGame.value = false;
+      return false;
     }
 
     // After server writes complete, broadcast navigation and start events so clients receive authoritative state
@@ -190,6 +218,10 @@ export function useGameManager() {
       if (error) {
         throw new Error(`Error initializing next round: ${error.message}`);
       } else {
+        const isJoined = await ensureGameChannelJoined();
+        if (!isJoined) {
+          throw new Error("Realtime channel is not connected.");
+        }
         gameChannel.value.send({
           type: "broadcast",
           event: "cards_dealt",
