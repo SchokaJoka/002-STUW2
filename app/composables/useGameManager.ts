@@ -76,7 +76,6 @@ export function useGameManager() {
     }
   };
 
-
   async function initializeGame(
     roomId: string,
     roomCode: string,
@@ -300,18 +299,18 @@ export function useGameManager() {
   }
 
   async function handleLobby(currentMetaData: any) {
-        myChosenWhiteCards.value = [];
-        try {
-          const route = useRoute();
-          const roomCode = String(route.params.roomCode ?? "");
-          if (roomCode) {
-            navigateTo(`/play/${roomCode}/lobby`)
-          } else {
-            throw new Error("Cannot Navigate to Lobby! roomCode not defined.")
-          };
-        } catch (e) {
-          console.error("Error navigating to lobby:", e);
-        }
+    myChosenWhiteCards.value = [];
+    try {
+      const route = useRoute();
+      const roomCode = String(route.params.roomCode ?? "");
+      if (roomCode) {
+        navigateTo(`/play/${roomCode}/lobby`);
+      } else {
+        throw new Error("Cannot Navigate to Lobby! roomCode not defined.");
+      }
+    } catch (e) {
+      console.error("Error navigating to lobby:", e);
+    }
   }
 
   async function trackMyStatus(myPresenceStatus: string, roomId: string) {
@@ -341,6 +340,9 @@ export function useGameManager() {
     winnerUserId,
     winnerUsername,
     winnerCards,
+
+    gameManagerRoomId: roomId,
+    gameManagerPlayerId: playerId,
 
     // Functions
     trackMyStatus,
