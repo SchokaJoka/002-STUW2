@@ -3,11 +3,7 @@
         <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
             <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
                 <div class="cursor-pointer" @click="navigateTo('/')">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="38" height="33" viewBox="0 0 38 33" fill="none">
-                        <path
-                            d="M37 31.8505C32.596 26.4042 28.6852 23.314 25.2676 22.5797C21.85 21.8454 18.5962 21.7345 15.5062 22.2469V32L1 16.0852L15.5062 1.00003V10.2699C21.22 10.3155 26.0776 12.3922 30.079 16.5C34.0798 20.6078 36.3868 25.7247 37 31.8505Z"
-                            stroke="black" stroke-width="2" stroke-linejoin="round" />
-                    </svg>
+                    <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
                 </div>
                 <p class="text-black text-4xl font-bold">Sets</p>
             </div>
