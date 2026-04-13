@@ -47,9 +47,9 @@ const isDisabled = computed(() => props.disabled || props.loading);
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-white text-black border-black md:hover:bg-[#FFF766] md:hover:-translate-y-1 active:bg-[#00E1EF] active:-translate-x-2 active:-translate-y-2 focus-visible:ring-[#00E1EF]",
+    "bg-white text-black border-black md:hover:bg-[#FFF766] md:hover:-translate-y-1 active:bg-[#00E1EF] focus-visible:ring-[#00E1EF]",
   secondary:
-    "bg-red-500 text-black border-black md:hover:bg-neutral-200 md:hover:-translate-y-1 active:bg-neutral-300 active:-translate-x-2 active:-translate-y-2 focus-visible:ring-neutral-300",
+    "bg-black text-white border-white md:hover:-translate-y-1 active:bg-black/80 focus-visible:ring-neutral-300",
   tertiary:
     "bg-green-300 text-black border-black md:hover:bg-green-400 md:hover:-translate-y-1 active:bg-green-500 active:-translate-x-2 active:-translate-y-2 focus-visible:ring-green-500",
   danger:
@@ -60,7 +60,7 @@ const variantClasses: Record<ButtonVariant, string> = {
 
 const sizeClasses: Record<ButtonSize, string> = {
   sm: "px-3 py-2 text-sm font-normal border-2",
-  md: "px-4 py-3 text-md font-normal border-[3px]",
+  md: "px-6 py-4 text-xl font-semibold border-[3px]",
   lg: "px-6 py-6 text-3xl font-extrabold border-[5px]",
 };
 
@@ -70,8 +70,8 @@ const variantShadowColors: Record<ButtonVariant, { "--btn-shadow-color": string;
     "--btn-shadow-highlight": "rgba(255,255,255,1)",
   },
   secondary: {
-    "--btn-shadow-color": "rgba(38,38,38,1)",
-    "--btn-shadow-highlight": "rgba(255,255,255,1)",
+    "--btn-shadow-color": "rgba(255,255,255,1)",
+    "--btn-shadow-highlight": "rgba(0,0,0,1)",
   },
   tertiary: {
     "--btn-shadow-color": "rgba(20,83,45,1)",
@@ -111,7 +111,7 @@ const buttonClasses = computed(() => [
   "btn-base inline-flex items-center justify-center p-2.5 transform-gpu will-change-transform transition-[background-color,box-shadow,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
   "focus-visible:outline-none focus-visible:ring-2",
   "disabled:cursor-not-allowed disabled:opacity-60",
-  props.block ? "w-full" : "w-auto",
+  props.block ? "w-full" : "w-fit",
   variantClasses[props.variant],
   sizeClasses[props.size],
 ]);

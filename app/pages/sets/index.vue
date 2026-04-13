@@ -1,24 +1,24 @@
 <template>
-    <main class="w-full flex items-center justify-center">
-        <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
-            <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
+    <main class="w-full flex items-center justify-center text-white">
+        <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10 bg-black">
+            <div class="flex flex-row items-center w-full gap-4 p-4">
                 <div class="cursor-pointer" @click="navigateTo('/')">
                     <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
                 </div>
-                <p class="text-black text-4xl font-bold">Sets</p>
+                <p class="text-4xl font-bold">Sets</p>
             </div>
-            <div class="w-full flex flex-row justify-center bg-white z-10">
-                <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
+            <div class="w-full flex flex-row justify-center z-10">
+                <div class="w-full flex flex-row z-10 max-w-3xl">
                     <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page1'
-                            ? 'text-black bg-neutral-300'
-                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
+                            ? 'text-black bg-[#FFA3C0]'
+                            : 'text-white bg-[#C06F9B] hover:bg-neutral-250'" @click="activeTab = 'page1'">
                         My Sets
                     </button>
                     <button class="w-full px-3 py-4 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page2'
-                            ? 'text-black bg-neutral-300'
-                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
+                            ? 'text-black bg-[#FFA3C0]'
+                            : 'text-white bg-[#C06F9B] hover:bg-neutral-250'" @click="activeTab = 'page2'">
                         Available Sets
                     </button>
                 </div>
@@ -26,7 +26,7 @@
             </div>
         </header>
 
-        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl bg-neutral-300">
+        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl bg-[#FFA3C0]">
             <div class="flex flex-col h-full w-full mt-[var(--sets-header-h)]">
 
                 <div class="h-fit flex flex-col p-4 min-h-screen">
@@ -46,15 +46,7 @@
                                     <div v-for="collection in userCollections" :key="collection.id"
                                         @click="navigateTo('/sets/' + collection.id)"
                                         class="relative w-full flex flex-row items-center gap-4 bg-neutral-50 p-5 rounded-lg border border-[3px] border-black hover:cursor-pointer">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="37" height="37"
-                                            viewBox="0 0 37 37" fill="none">
-                                            <path d="M24.6666 4.625H6.16663V24.6667" stroke="black" stroke-width="2"
-                                                stroke-linecap="round" stroke-linejoin="round" />
-                                            <path
-                                                d="M12.3333 10.7917H30.8333V29.2917C30.8333 30.1095 30.5084 30.8938 29.9302 31.472C29.3519 32.0502 28.5677 32.3751 27.7499 32.3751H15.4166C14.5988 32.3751 13.8146 32.0502 13.2363 31.472C12.6581 30.8938 12.3333 30.1095 12.3333 29.2917V10.7917Z"
-                                                stroke="black" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round" />
-                                        </svg>
+                                        <img src="~/assets/svg/card-set-icon.svg" alt="Card Set" class="h-9 w-9" />
                                         <p class="text-black text-xl font-semibold">{{ collection.name }}</p>
                                         <div class="absolute top-2 right-1 hover:cursor-pointer" @click="">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="29" height="29"
@@ -77,15 +69,7 @@
                                 <div class="flex flex-col gap-4">
                                     <div v-for="collection in publicCollections" :key="collection.id"
                                         class="relative w-full flex flex-row items-center gap-4 bg-neutral-50 p-5 rounded-lg border border-[3px] border-black hover:cursor-pointer">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="37" height="37"
-                                            viewBox="0 0 37 37" fill="none">
-                                            <path d="M24.6666 4.625H6.16663V24.6667" stroke="black" stroke-width="2"
-                                                stroke-linecap="round" stroke-linejoin="round" />
-                                            <path
-                                                d="M12.3333 10.7917H30.8333V29.2917C30.8333 30.1095 30.5084 30.8938 29.9302 31.472C29.3519 32.0502 28.5677 32.3751 27.7499 32.3751H15.4166C14.5988 32.3751 13.8146 32.0502 13.2363 31.472C12.6581 30.8938 12.3333 30.1095 12.3333 29.2917V10.7917Z"
-                                                stroke="black" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round" />
-                                        </svg>
+                                        <img src="~/assets/svg/card-set-icon.svg" alt="Card Set" class="h-9 w-9" />
                                         <p class="text-black text-xl font-semibold">{{ collection.name }}</p>
                                     </div>
                                 </div>
@@ -98,14 +82,13 @@
 
         <section class="fixed bottom-[max(env(safe-area-inset-bottom),1.5rem)] z-20">
             <div class="w-full max-w-2xl mx-auto">
-                <Button variant="secondary" size="md" @click="navigateTo('/sets/create')">
+                <Button variant="primary" size="lg" class="rounded-lg" @click="navigateTo('/sets/create')">
                     <template #iconLeft>
                         <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none">
                             <path d="M12 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                             <path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                         </svg>
                     </template>
-                    Create Set
                 </Button>
             </div>
         </section>

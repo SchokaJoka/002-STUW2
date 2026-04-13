@@ -1,32 +1,21 @@
 <template>
-    <main class="w-full flex items-center justify-center bg-neutral-300">
-        <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
-            <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
+    <main class="w-full flex items-center justify-center">
+        <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10 bg-black">
+            <div class="flex flex-row items-center w-full gap-4 p-4">
                 <div class="hover:cursor-pointer" @click="navigateTo('/sets')">
                     <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
                 </div>
                 <input v-model="collection.name" ref="collectionNameInputRef" type="text" placeholder="new Card-Set" @keyup.enter="($event.target as HTMLInputElement | null)?.blur()" @blur="saveCollectionName(collectionId, collection.name)"
-                    class="p-2 w-full text-black text-4xl font-bold"></input>
-                <div class="flex py-2 hover:cursor-pointer" @click="focusInput()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <g clip-path="url(#clip0_271_923)">
-                            <path d="M6 24H0V18M21 9L15 3L18 0L24 6M9 21L3 15L12 6L18 12" fill="black" />
-                        </g>
-                        <defs>
-                            <clipPath id="clip0_271_923">
-                                <rect width="24" height="24" fill="white" />
-                            </clipPath>
-                        </defs>
-                    </svg>
-                </div>
+                    class="p-2 w-full text-white bg-transparent focus:outline-[#79F8B0] text-4xl font-bold">
+                </input>
             </div>
-            <div class="w-full flex flex-row justify-center bg-white z-10">
-                <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
+            <div class="w-full flex flex-row justify-center z-10">
+                <div class="w-full flex flex-row z-10 max-w-3xl">
                     <button
                         class="w-full p-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page1'
-                            ? 'text-black bg-neutral-300'
-                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
+                            ? 'text-black bg-[#79F8B0]'
+                            : 'text-white bg-[#50907F] hover:bg-neutral-250'" @click="activeTab = 'page1'">
                         <span class="flex size-8 items-center justify-center bg-white rounded-full text-black">
                             {{ whiteCards.length }}
                         </span>
@@ -37,8 +26,8 @@
                     <button
                         class="w-full px-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page2'
-                            ? 'text-black bg-neutral-300'
-                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
+                            ? 'text-black bg-[#79F8B0]'
+                            : 'text-white bg-[#50907F] hover:bg-neutral-250'" @click="activeTab = 'page2'">
                         <span class="flex size-8 items-center justify-center bg-black rounded-full text-white">
                             {{ blackCards.length }}
                         </span>
@@ -50,7 +39,7 @@
             </div>
         </header>
 
-        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl">
+        <section class="relative flex flex-col items-center justify-start w-full h-fit max-w-3xl bg-[#79F8B0]">
             <div class="flex flex-col h-full w-full mt-[var(--sets-header-h)]">
 
                 <div class="h-fit flex flex-col p-4 min-h-screen">

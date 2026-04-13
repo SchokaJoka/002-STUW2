@@ -1,21 +1,21 @@
 <template>
     <main class="w-full flex items-center justify-center">
-        <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10">
-            <div class="flex flex-row items-center w-full gap-4 p-4 bg-white">
+        <header ref="headerEl" class="fixed top-0 w-full flex flex-col items-start justify-start z-10 bg-black">
+            <div class="flex flex-row items-center w-full gap-4 p-4">
                 <div class="cursor-pointer" @click="leavePage">
                     <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
                 </div>
                 <input v-model="collectionName" type="text" placeholder="new Card-Set"
-                    class="w-full text-black text-4xl font-bold"></input>
+                    class="w-full text-white bg-transparent focus:outline-[#79F8B0] text-4xl font-bold"></input>
             </div>
-            <div class="w-full flex flex-row justify-center bg-white z-10">
-                <div class="w-full flex flex-row bg-white z-10 max-w-3xl">
+            <div class="w-full flex flex-row justify-center z-10">
+                <div class="w-full flex flex-row z-10 max-w-3xl">
                     <button
                         class="w-full px-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page1'
-                            ? 'text-black bg-neutral-300'
-                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page1'">
-                        <span class="flex size-8 items-center justify-center bg-white rounded-full text-black">
+                            ? 'text-black bg-[#79F8B0]'
+                            : 'text-white bg-[#50907F] hover:bg-neutral-250'" @click="activeTab = 'page1'">
+                        <span class="flex size-8 items-center justify-center rounded-full text-black bg-white">
                                 {{ whiteCards.length }}
                         </span>
                         <span>
@@ -25,8 +25,8 @@
                     <button
                         class="w-full px-3 py-4 flex flex-row justify-center items-center gap-2 text-xl font-semibold rounded-t-lg transition-all duration-300 ease-out"
                         :class="activeTab === 'page2'
-                            ? 'text-black bg-neutral-300'
-                            : 'text-white bg-neutral-200 hover:bg-neutral-250'" @click="activeTab = 'page2'">
+                            ? 'text-black bg-[#79F8B0]'
+                            : 'text-white bg-[#50907F] hover:bg-neutral-250'" @click="activeTab = 'page2'">
                         <span class="flex size-8 items-center justify-center bg-black rounded-full text-white">
                                 {{ blackCards.length }}
                         </span>
@@ -74,13 +74,13 @@
 
         <section class="fixed bottom-[max(env(safe-area-inset-bottom),1.5rem)] z-20">
             <div class="w-full flex flex-row gap-4 max-w-2xl mx-auto">
-                <Button variant="secondary" size="md" @click="activeTab === 'page1' ? newWhiteCard() : newBlackCard()" class="rounded-full">
+                <Button variant="primary" size="lg" @click="activeTab === 'page1' ? newWhiteCard() : newBlackCard()" class="rounded-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none">
                         <path d="M12 5V19" stroke="black" stroke-width="2" stroke-linecap="round" />
                         <path d="M5 12H19" stroke="black" stroke-width="2" stroke-linecap="round" />
                     </svg>
                 </Button>
-                <Button v-if="hasUnsavedChanges" variant="tertiary" size="md" @click="saveCollection()">
+                <Button v-if="hasUnsavedChanges" variant="primary" class="rounded-lg" size="lg" @click="saveCollection()">
                     Save
                 </Button>
             </div>
