@@ -82,7 +82,9 @@ Deno.serve(async (req: Request) => {
       if (whiteCardsErr || blackCardsErr) throw whiteCardsErr || blackCardsErr;
 
       // 3. Shuffle White Cards & Build Hand Inserts
-      const whitePool = (whiteCards ?? []).map((c: any) => c.id).sort(() => Math.random() - 0.5);
+      const whitePool = (whiteCards ?? [])
+        .map((c: any) => c.id)
+        .sort(() => Math.random() - 0.5);
       const handInserts: any[] = [];
       let poolIndex = 0;
 
@@ -105,9 +107,13 @@ Deno.serve(async (req: Request) => {
       insertPromises.push(supabase.from("hand_cards").insert(handInserts));
 
       // 4. Handle Remaining White Cards
-      const remainingWhite = whitePool.slice(poolIndex).map((id) => ({ card_id: id, room_id }));
+      const remainingWhite = whitePool
+        .slice(poolIndex)
+        .map((id) => ({ card_id: id, room_id }));
       if (remainingWhite.length > 0) {
-        insertPromises.push(supabase.from("remaining_white_cards").insert(remainingWhite));
+        insertPromises.push(
+          supabase.from("remaining_white_cards").insert(remainingWhite),
+        );
       }
 
       // 5. Black Card logic
@@ -115,14 +121,22 @@ Deno.serve(async (req: Request) => {
         // Shuffle black cards
         const shuffledBlack = [...blackCards].sort(() => Math.random() - 0.5);
         const activeBlackCard = shuffledBlack[0];
-        const remainingBlack = shuffledBlack.slice(1).map((c) => ({ card_id: c.id, room_id }));
+        const remainingBlack = shuffledBlack
+          .slice(1)
+          .map((c) => ({ card_id: c.id, room_id }));
 
         if (remainingBlack.length > 0) {
-          insertPromises.push(supabase.from("remaining_black_cards").insert(remainingBlack));
+          insertPromises.push(
+            supabase.from("remaining_black_cards").insert(remainingBlack),
+          );
         }
 
         // Fetch existing metadata first
-        const { data: room, error: roomErr } = await supabase.from("rooms").select("metadata").eq("id", room_id).single();
+        const { data: room, error: roomErr } = await supabase
+          .from("rooms")
+          .select("metadata")
+          .eq("id", room_id)
+          .single();
         if (roomErr) throw roomErr;
 
         // Then spread existing metadata and override/add new fields
@@ -156,7 +170,9 @@ Deno.serve(async (req: Request) => {
           `[initialize_game] Not enough white cards: have ${whiteCards?.length ?? 0}, need ${requiredWhiteCards}`,
         );
         return new Response(
-          JSON.stringify({ error: `Not enough white cards across selected collections.` }),
+          JSON.stringify({
+            error: `Not enough white cards across selected collections.`,
+          }),
           {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -165,7 +181,11 @@ Deno.serve(async (req: Request) => {
       }
     } else {
       // creative mode: initialize metadata for creative round creation
-      const { data: room, error: roomErr } = await supabase.from("rooms").select("metadata").eq("id", room_id).single();
+      const { data: room, error: roomErr } = await supabase
+        .from("rooms")
+        .select("metadata")
+        .eq("id", room_id)
+        .single();
       if (roomErr) throw roomErr;
 
       insertPromises.push(
@@ -196,7 +216,10 @@ Deno.serve(async (req: Request) => {
 
     // Update room_members statuses so clients receive accurate presence/status
     try {
-      const { error: setAllErr } = await supabase.from("room_members").update({ status: "waiting" }).eq("room_id", room_id);
+      const { error: setAllErr } = await supabase
+        .from("room_members")
+        .update({ status: "waiting" })
+        .eq("room_id", room_id);
       if (setAllErr) throw setAllErr;
 
       const { error: setCzarErr } = await supabase
@@ -219,9 +242,12 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err?.message ?? String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: err?.message ?? String(err) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
