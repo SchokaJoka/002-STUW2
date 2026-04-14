@@ -25,20 +25,30 @@ function onSaveSet() { emit('save-set'); }
 
 <template>
     <transition name="fade">
-        <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center text-black bg-white">
+        <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center text-black bg-sky-300">
+            <header ref="headerEl" class="fixed top-0 w-full flex items-center justify-start p-4 z-40">
+                <div class="w-full flex flex-row gap-4 items-center">
+                    <div class="cursor-pointer"
+                        @click="onBackdrop">
+                        <img src="~/assets/svg/blackback.svg" alt="Back" class="h-8 w-10" />
+                    </div>
+                </div>
+            </header>
             <div class="p-5 max-w-md w-full h-full flex flex-col gap-4 items-center justify-center">
-                <div class="text-lg font-semibold">Are you sure?</div>
-                <p class="text-sm">Leaving will remove you from the game.</p>
-                <Button variant="danger" size="lg" block :loading="leaveLoading" :disabled="leaveLoading" @click="onLeave">
+                <div class="text-4xl font-extrabold mb-8">Are you sure?</div>
+                <Button variant="secondary" size="lg" block class="rounded-lg" :loading="leaveLoading" :disabled="leaveLoading"
+                    @click="onLeave">
                     Leave Game
                     <template #loading>Leaving...</template>
                 </Button>
-                <Button v-if="isGameMaster" variant="secondary" size="lg" block :loading="backToLobbyLoading"
+                <Button v-if="isGameMaster" variant="primary" size="lg" block class="rounded-lg" :loading="backToLobbyLoading"
                     :disabled="backToLobbyLoading" @click="onBackToLobby">Back to
                     Lobby</Button>
-                <Button v-if="isGameMaster && roundStatus === 'round_end' && !savedCollectionId && props.mode === 'creative'"
-                    variant="tertiary" size="lg" block :loading="saveSetLoading" :disabled="saveSetLoading" @click="onSaveSet">Save Set</Button>
-                <Button variant="secondary" size="lg" block :disabled="leaveLoading || backToLobbyLoading || saveSetLoading" @click="onBackdrop">Cancel</Button>
+                <Button
+                    v-if="isGameMaster && roundStatus === 'round_end' && !savedCollectionId && props.mode === 'creative'"
+                    variant="secondary" size="lg" block class="rounded-lg" :loading="saveSetLoading" :disabled="saveSetLoading"
+                    @click="onSaveSet">Save
+                    Set</Button>
             </div>
         </div>
     </transition>
