@@ -43,6 +43,29 @@ const selectedGameMode = useState<"classic" | "creative">(
   () => "classic",
 );
 
+const avatarModules = import.meta.glob("~/assets/img/avatar/*.png", {
+  eager: true,
+  import: "default",
+}) as Record<string, string>;
+
+function getAvatarSrc(avatarId: unknown): string {
+  const id = String(avatarId ?? "1").trim();
+  const targetName = `avatar-${id}.png`;
+  const matchedEntry = Object.entries(avatarModules).find(([path]) =>
+    path.endsWith(targetName),
+  );
+
+  // Fall back to avatar-1 when metadata is missing/invalid.
+  if (matchedEntry) {
+    return matchedEntry[1];
+  }
+
+  const fallbackEntry = Object.entries(avatarModules).find(([path]) =>
+    path.endsWith("avatar-1.png"),
+  );
+  return fallbackEntry?.[1] ?? "";
+}
+
 // ============================================================
 
 // COMPOSABLES
@@ -409,7 +432,7 @@ const dev2gaps = ref(true);
               ? 'border-black'
               : 'border-black'
               ">
-              <img src="https://placehold.co/40" alt="Player avatar" class="size-10 rounded-full object-cover" />
+              <img :src="getAvatarSrc(player.metadata?.avatar_url)" alt="Player avatar" class="size-10 rounded-full object-cover" />
 
             </div>
             <span class="text-xs font-semibold transition">

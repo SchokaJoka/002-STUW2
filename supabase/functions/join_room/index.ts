@@ -31,10 +31,12 @@ Deno.serve(async (req: Request) => {
       room_id,
       user_id,
       user_name = null,
+      avatar_url = null,
     } = body as {
       room_id: string;
       user_id: string;
       user_name?: string | null;
+      avatar_url?: string | null;
     };
 
     const { data: existingMember, error: memberErr } = await supabase
@@ -61,6 +63,9 @@ Deno.serve(async (req: Request) => {
           is_active: true,
           left_at: null,
           user_name,
+          metadata: {
+            avatar_url: avatar_url
+          },
         })
         .eq("room_id", room_id)
         .eq("user_id", user_id);
@@ -117,7 +122,7 @@ Deno.serve(async (req: Request) => {
       user_name,
       joined_at: new Date().toISOString(),
       status: "waiting",
-      metadata: { submitted_cards: [] },
+      metadata: { submitted_cards: [], avatar_url: avatar_url },
     });
 
     if (insertErr) {

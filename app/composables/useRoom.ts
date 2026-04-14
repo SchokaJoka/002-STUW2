@@ -118,6 +118,7 @@ export function useRoom() {
         user_id: user.value.sub,
         user_name: user.value.user_metadata?.full_name,
         joined_at: presenceJoinedAt,
+        avatar_url: user.value.user_metadata?.avatar_url,
       });
     } catch (error) {
       console.warn("[useRoom] Failed to track presence", error);
@@ -130,10 +131,13 @@ export function useRoom() {
 
   function mergePresenceIntoPlayers() {
     const presence = presenceByUserId.value ?? {};
+    console.log("[useRoom] Merging presence into players. Presence state:", presence);
     players.value = players.value.map((player: any) => ({
       ...player,
       is_online: !!presence[player.user_id],
     }));
+
+    console.log("[useRoom] Merged presence into players:", players.value);
   }
 
   async function refreshRoomMembers(roomId: string) {
@@ -211,6 +215,7 @@ export function useRoom() {
         room_id: roomId,
         user_id: playerId,
         user_name: user.value?.user_metadata?.full_name ?? null,
+        avatar_url: user.value?.user_metadata?.avatar_url ?? null,
       },
     });
 
