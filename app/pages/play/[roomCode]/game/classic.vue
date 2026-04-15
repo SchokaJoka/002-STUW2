@@ -716,7 +716,7 @@ const dev2gaps = ref(false);
       <!-- Game Section -->
       <section name="game-section" v-if="gameStarted && roundStatus !== 'lobby' && roundStatus !== 'round_end'"
         key="game-section"
-        class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex items-center gap-2 overflow-y-visible pb-4 md:pb-32"
+        class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex flex-col justify-start items-center gap-4 p-4"
         :class="isCzar ? 'flex-col-reverse justify-start' : 'flex-col justify-start'">
         <TransitionGroup name="stack-fade" appear>
           <!-- Black Card -->
@@ -743,9 +743,10 @@ const dev2gaps = ref(false);
               :selected-ids="selectedJudgingCardIds" selected-class="selected-judging" @select-item="pickWinner" />
 
             <div v-else class="w-full px-4">
-              <div class="flex w-full gap-6">
+              <div class="w-full max-w-2xl mx-auto flex flex-row justify-around items-stretch gap-2">
                 <!-- Left column -->
                 <div class="flex flex-1 min-w-0 flex-col items-center gap-4 pt-8">
+
                   <div v-if="blackCard"
                     class="bg-black h-64 w-52 min-w-[12rem] rounded-xl p-4 font-bold border-2 border-black">
                     <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
@@ -759,7 +760,7 @@ const dev2gaps = ref(false);
                 </div>
 
                 <!-- Right column (offset) -->
-    <div class="flex flex-1 min-w-0 flex-col items-center gap-4 pt-8">
+                <div class="flex flex-1 min-w-0 flex-col items-center gap-4 pt-8">
                   <SubmittedCards v-for="submission in rightSubmissions" :key="submission.user_id"
                     :submission="submission" :collection-cards="collectionCards" />
                 </div>

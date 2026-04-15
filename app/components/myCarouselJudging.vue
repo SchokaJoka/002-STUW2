@@ -76,7 +76,7 @@ const groups = computed(() => {
   }
   console.log("GROUPS", order.map((k) => per[k] || []));
   return order.map((k) => per[k] || []);
-  
+
 });
 
 // rows: r-th card from each player
@@ -241,7 +241,7 @@ onUnmounted(() => {
 
 .card {
   @apply absolute w-52 h-full max-h-64 overflow-y-auto rounded-xl shadow-xl bg-white flex p-4 pr-12 text-black;
-  border: 3px solid black;
+  border: 2px solid black;
   transition: transform 300ms ease, background-color 200ms ease, border-color 200ms ease;
 }
 

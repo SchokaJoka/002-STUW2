@@ -374,7 +374,7 @@ async function handleBackFromLobby() {
 
 // DEV DEBUGGING
 // ============================================================
-const dev2gaps = ref(true);
+const dev2gaps = ref(false);
 // ============================================================
 </script>
 
