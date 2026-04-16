@@ -812,7 +812,7 @@ const dev2gaps = ref(false);
 
       <!-- Round End Section -->
       <section name="round-end" v-if="gameStarted && roundStatus === 'round_end'" key="round-end-section"
-        class="w-full mt-[var(--sets-header-h)] h-[100lvh] flex flex-col justify-start items-center gap-4 p-4">
+        class="w-full mt-[var(--sets-header-h)] h-100lvh flex flex-col justify-start items-center gap-4 p-4">
         <TransitionGroup name="stack-fade" appear>
           <div key="round-end-container" class="w-full flex flex-row justify-around items-stretch gap-2 max-w-2xl">
             <TransitionGroup name="stack-fade" appear>
