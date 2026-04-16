@@ -12,7 +12,7 @@
     </header>
 
     <main
-      class="w-full flex flex-col items-center justify-between gap-4 max-w-3xl p-4 h-[calc(100lvh-var(--profile-header-h))] mt-[var(--profile-header-h)]">
+      class="w-full flex flex-col items-center justify-between gap-4 max-w-3xl p-4 h-[100lvh] mt-[var(--profile-header-h)]">
       <template v-if="user && !user.is_anonymous">
         <div class="w-full flex flex-col items-center justify-center gap-4">
           <div
