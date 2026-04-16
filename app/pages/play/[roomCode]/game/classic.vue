@@ -640,7 +640,7 @@ const dev2gaps = ref(false);
 </script>
 
 <template>
-  <main class="flex flex-col items-center w-full h-dvh overflow-w-hidden overflow-y-auto transition-color" :class="roundStatus === 'round_end'
+  <main class="flex flex-col items-center w-full h-lvh overflow-w-hidden overflow-y-auto transition-color" :class="roundStatus === 'round_end'
     ? 'bg-sky-300 text-black'
     : isCzar
       ? 'bg-black text-white'
