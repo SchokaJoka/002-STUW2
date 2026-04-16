@@ -98,9 +98,12 @@
         <Button @click="createGame()" variant="primary" size="lg" block class="">Create Game</Button>
         <Button @click="joinGame()" variant="primary" size="lg" block class="">Join Game</Button>
       </div>
+      <div>
+        <img src="~/assets/svg/weui_arrow-outlined.svg" class="flex w-full" />
+      </div>
 
       <!-- How To Play -->
-      <div class="flex flex-col gap-1 justify-center" :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
+      <div class="flex flex-col gap-1 justify-start" :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
         <p class="w-full h-fit text-lg font-semibold">
           <span class="text-4xl font-extrabold block mb-4">How to Play</span>
           Each player starts with 10 white cards.<br><br>
