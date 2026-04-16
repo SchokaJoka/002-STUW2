@@ -290,9 +290,6 @@ onMounted(async () => {
     userProfile.value.avatar_url = "1";
     await updateProfile(null, userProfile.value.avatar_url);
   }
-
-
-  console.log("User profile loaded:", userProfile.value);
 });
 </script>
 

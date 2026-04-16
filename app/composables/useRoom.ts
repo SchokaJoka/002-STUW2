@@ -316,7 +316,6 @@ export function useRoom() {
       "broadcast",
       { event: "lobby_settings_updated" },
       async (payload) => {
-        console.log("[BROADCAST] lobby_settings_updated", payload);
         selectedGameMode.value =
           payload?.payload?.selectedGameMode || "classic";
       },
@@ -324,7 +323,6 @@ export function useRoom() {
 
     // navigate_to_game (only register in lobby context)
     channel.on("broadcast", { event: "navigate_to_game" }, (payload) => {
-      console.log("[BROADCAST] navigate_to_game:", payload);
       isRoomNavigation.value = true;
       const mode = payload?.payload?.mode ?? "classic";
       navigateTo(`/play/${payload.payload.roomCode}/game/${mode}`);
@@ -340,8 +338,6 @@ export function useRoom() {
         filter: `user_id=eq.${playerId}`,
       },
       (payload) => {
-        console.log("[POSTGRES] hand_cards updated:", payload.eventType);
-
         if (payload.eventType === "DELETE") {
           // Remove deleted card from local state
           playerHandCards.value = playerHandCards.value.filter(
@@ -388,7 +384,6 @@ export function useRoom() {
     // ...existing code...
     channel.on("broadcast", { event: "game_initialize" }, async (body) => {
       try {
-        console.log("[BROADCAST] game_initialize: ", body);
         const setId = body?.payload?.set_id;
 
         let query = supabase.from("cards").select("*");
@@ -405,25 +400,9 @@ export function useRoom() {
         }
 
         collectionCards.value = data2 ?? [];
-        console.log(
-          "[BROADCAST] loaded collection cards:",
-          collectionCards.value.length,
-        );
       } catch (err) {
         console.error("[BROADCAST] game_initialize handler error:", err);
       }
-    });
-
-    // game_start
-    channel.on("broadcast", { event: "game_start" }, () => {
-      console.log("[BROADCAST] game_start");
-      /*       gameStarted.value = true;
-       */
-    });
-
-    // round_submitted (fallback refresh)
-    channel.on("broadcast", { event: "round_submitted" }, async (body) => {
-      console.log("[BROADCAST] round_submitted", body);
     });
 
     // Realtime table listeners (after channel is created)
@@ -436,13 +415,11 @@ export function useRoom() {
         filter: `id=eq.${roomId}`,
       },
       (payload) => {
-        console.log("[POSTGRES] new room Metadata: ", payload.new.metadata);
         if (gameMasterId.value !== payload.new.owner) {
           gameMasterId.value = payload.new.owner;
         }
         const nextMode = payload.new.metadata?.mode as "classic" | "creative";
         if (nextMode && nextMode !== selectedGameMode.value) {
-          console.log("[POSTGRES] Game mode changed to:", nextMode);
           selectedGameMode.value = nextMode;
         }
         handleGameStateChanges(payload.new.metadata, payload.new.code);

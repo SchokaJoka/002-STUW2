@@ -199,7 +199,6 @@ const round = computed(() => {
 });
 
 const judgingCards = computed(() => {
-  console.log("PLAYERSUBMISSIONS", playerSubmissions.value);
   const submissions = playerSubmissions.value.flatMap(ps =>
     (ps.metadata?.submitted_cards || []).map((cardId: string) => ({
       id: `${ps.id}-${cardId}`,
@@ -207,7 +206,6 @@ const judgingCards = computed(() => {
       submission: ps
     }))
   );
-  console.log("JUDGING CARDS:", submissions);
   return submissions;
 });
 
@@ -225,16 +223,6 @@ const leftSubmissions = computed(() =>
 const rightSubmissions = computed(() =>
   playerSubmissions.value.filter((_, index) => index % 2 === 0),
 );
-
-watch(
-  [leftSubmissions, rightSubmissions],
-  ([left, right]) => {
-    console.log("LEFT SUBMISSIONS:", left);
-    console.log("RIGHT SUBMISSIONS:", right);
-  },
-  { immediate: true },
-);
-
 
 const winnerPlayer = computed(() => {
   return players.value.find(p => p.user_id === winnerUserId.value);
@@ -532,8 +520,6 @@ onBeforeRouteLeave((to) => {
 });
 
 onUnmounted(async () => {
-  console.log("Unmounting game component, leaving room/channel if necessary.");
-
   blackCard.value = null;
   playerSubmissions.value = [];
   winnerUserId.value = null;
@@ -638,7 +624,6 @@ async function handleBackToLobbyConfirmed() {
       body: { room_id: roomId.value }
     });
     if (error) console.error("[EDGE] end_game_go_back_to_lobby error:", error);
-    else console.log("[EDGE] end_game_go_back_to_lobby", data);
   } catch (err) {
     console.error("Error invoking end_game_go_back_to_lobby:", err);
   } finally {
@@ -698,8 +683,9 @@ const dev2gaps = ref(false);
         <LeaveConfirmOverlay :show="showLeaveConfirm" :is-game-master="isGameMaster" :round-status="roundStatus"
           :leave-loading="isLeavingGame" :back-to-lobby-loading="isReturningToLobby" @close="showLeaveConfirm = false"
           @leave="handleLeaveConfirmed" @back-to-lobby="handleBackToLobbyConfirmed" />
-        <Button @click="showLeaveConfirm = true" variant="tertiary" :class="isCzar ? 'bg-white text-black rounded border-white' : 'bg-black text-white rounded border-black'" size="md"
-          class="">Leave</Button>
+        <Button @click="showLeaveConfirm = true" variant="tertiary"
+          :class="isCzar ? 'bg-white text-black rounded border-white' : 'bg-black text-white rounded border-black'"
+          size="md" class="">Leave</Button>
       </div>
       <div class="w-full flex flex-row gap-2">
         <div class="w-full text-center font-medium text-md transition-all">
@@ -720,7 +706,7 @@ const dev2gaps = ref(false);
         :class="isCzar ? 'flex-col-reverse justify-start' : 'flex-col justify-start'">
         <TransitionGroup name="stack-fade" appear>
           <!-- Black Card -->
-          <div v-if="blackCard && !(roundStatus === 'round_submitted' && !isCzar)"
+          <div v-if="blackCard && !(roundStatus === 'round_submitted' && !isCzar)" key="black-card"
             class="rounded-xl border-[3px] border-white w-52 h-full max-h-64 bg-black p-4 text-normal font-bold z-20 overflow-y-auto">
             <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
               :class="part.isGap ? 'text-violet-400 black-card-text' : 'text-white black-card-text'"
@@ -730,7 +716,7 @@ const dev2gaps = ref(false);
           </div>
 
           <!-- Player Hand -->
-          <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false"
+          <div v-if="!isCzar && roundStatus === 'round_start' && isWhiteCardsSubmitted === false" key="player-hand"
             class="w-full overflow-visible z-20">
             <MyCarousel :items="playerHandCards" :lookup-cards="collectionCards" :selected-ids="selectedHandCardIds"
               @select-item="pickCard">
@@ -738,17 +724,16 @@ const dev2gaps = ref(false);
           </div>
 
           <!-- Judging Area -->
-          <div v-if="roundStatus === 'round_submitted'" class="w-full overflow-visible z-10 h-full">
+          <div v-if="roundStatus === 'round_submitted'" key="judging-area" class="w-full overflow-visible z-10 h-full">
             <MyCarouselJudging v-if="isCzar" :items="judgingCards" :lookup-cards="collectionCards"
               :selected-ids="selectedJudgingCardIds" selected-class="selected-judging" @select-item="pickWinner" />
 
             <div v-else class="w-full px-4">
               <div class="w-full max-w-2xl mx-auto flex flex-row justify-around items-stretch gap-2">
                 <!-- Left column -->
-                <div class="flex flex-1 min-w-0 flex-col items-center gap-4 pt-8">
+                <div class="flex flex-1 min-w-0 flex-col items-center gap-2">
 
-                  <div v-if="blackCard"
-                    class="bg-black h-64 w-52 min-w-[12rem] rounded-xl p-4 font-bold border-2 border-black">
+                  <div v-if="blackCard" class="bg-black h-64 rounded-xl p-4 font-bold border-2 border-black">
                     <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
                       class="w-full overflow-y-auto black-card-text"
                       :class="part.isGap ? 'text-violet-500' : 'text-white'">
@@ -760,7 +745,7 @@ const dev2gaps = ref(false);
                 </div>
 
                 <!-- Right column (offset) -->
-                <div class="flex flex-1 min-w-0 flex-col items-center gap-4 pt-8">
+                <div class="flex flex-1 min-w-0 flex-col items-center gap-2">
                   <SubmittedCards v-for="submission in rightSubmissions" :key="submission.user_id"
                     :submission="submission" :collection-cards="collectionCards" />
                 </div>
@@ -774,11 +759,11 @@ const dev2gaps = ref(false);
       <section name="round-end" v-if="gameStarted && roundStatus === 'round_end'" key="round-end-section"
         class="w-full mt-[var(--sets-header-h)] h-[calc(100dvh-var(--sets-header-h))] flex flex-col justify-start items-center gap-4 p-4">
         <TransitionGroup name="stack-fade" appear>
-          <div class="w-full flex flex-row justify-around items-stretch gap-2 max-w-2xl">
+          <div key="round-end-container" class="w-full flex flex-row justify-around items-stretch gap-2 max-w-2xl">
             <TransitionGroup name="stack-fade" appear>
               <!-- Black Card -->
-              <div v-if="blackCard"
-                class="bg-black h-64 w-52 min-w-[12rem] rounded-xl p-4 font-bold border-2 border-black z-10 overflow-y-auto">
+              <div v-if="blackCard" key="black-card-end"
+                class="bg-black h-64 w-full rounded-xl p-4 font-bold border-2 border-black z-10 overflow-y-auto">
                 <span v-for="(part, index) in blackCardTextParts" :key="`black-card-${index}`"
                   class="w-full overflow-y-auto black-card-text" :class="part.isGap ? 'text-violet-500' : 'text-white'"
                   @click="deleteWhiteCardAtGap(part.gapIndex)">
@@ -786,9 +771,9 @@ const dev2gaps = ref(false);
                 </span>
               </div>
               <!-- Winner White Cards -->
-              <div class="w-full max-w-[26rem] min-h-full flex flex-col">
-                <div v-for="cardText, index in winnerCards"
-                  class="bg-white p-4 pr-8 shadow-xl w-full aspect-[13/16] overflow-y-auto relative rounded-t-xl border-black border-x-2 border-t-2"
+              <div key="winner-cards" class="w-full flex flex-col">
+                <div v-for="cardText, index in winnerCards" :key="`winner-card-${index}`"
+                  class="bg-white p-4 pr-8 min-h-32 w-full overflow-y-auto relative rounded-t-xl border-black border-x-2 border-t-2"
                   :class="[
                     index === winnerCards.length - 1 ? 'rounded-b-xl border-b-2' : '',
                     index === 0 ? 'pb-8' : '-mt-6 pb-16'
@@ -808,34 +793,33 @@ const dev2gaps = ref(false);
           </div>
 
           <!-- Player Scores -->
-          <div class="w-full h-full flex flex-col max-w-2xl gap-4 overflow-y-auto">
+          <div key="player-scores" class="w-full h-full flex flex-col max-w-2xl gap-2 overflow-y-auto">
             <!-- Items -->
             <TransitionGroup name="fade">
               <div v-for="(player, index) in displayedPlayers" :key="player.user_id" :class="[
-                'w-full flex flex-row justify-between items-stretch border-[3px] ',
+                'w-full flex flex-row justify-between items-stretch border-[3px] rounded ',
                 index === displayedPlayers.length - 1 ? 'bg-black text-white border-white' : 'bg-white text-black border-black'
               ]">
                 <div class="w-full flex flex-row items-center">
-                  <div class="text-2xl flex items-center h-full px-4"
-                    :class="index === displayedPlayers.length - 1 ? 'bg-white text-black' : 'bg-black text-white'">
-                    {{
-                      index === displayedPlayers.length - 1 ? "Last" : index + 1 + '.'
-                    }}
-                  </div>
-                  <div class="flex flex-row w-full py-2 px-4 items-center justify-between">
-                    <div class="flex flex-row items-center gap-2">
+                  <div class="flex flex-row w-full py-3 px-2 items-end justify-between">
+                    <div class="flex flex-row items-end gap-1">
                       <div
-                        class="border-2 rounded-full flex items-center justify-center text-white font-bold mb-1 size-12"
+                        class="border-2 rounded-full flex items-center justify-center text-white font-bold first-letter:size-12"
                         :class="index === displayedPlayers.length - 1 ? 'border-white' : 'border-black'">
                         <img class="rounded-full size-10" :src="getAvatarSrc(player.metadata?.avatar_url)"
                           alt="Player avatar" />
                       </div>
-                      <div class="">
+                      <div class=" text-sm">
                         {{ player.user_name }}
                       </div>
                     </div>
-                    <div
-                      class="bg-black rounded-full flex items-center justify-center text-white font-bold mb-1 size-10">
+                    <div class="text-4xl font-bold flex items-center px-2"
+                      :class="index === displayedPlayers.length - 1 ? 'text-white' : 'text-black'">
+                      {{
+                        index === 0 ? "1st" : index === 1 ? "2nd" : index === displayedPlayers.length - 1 ? 'Loser' : `${(index as number) + 1}th`
+                      }}
+                    </div>
+                    <div class="font-bold text-sm px-4" :class="index === displayedPlayers.length - 1 ? 'text-white' : 'text-black'">
                       <span>{{ getPlayerScore(player.user_id) }}</span>
                     </div>
                   </div>
@@ -844,7 +828,6 @@ const dev2gaps = ref(false);
             </TransitionGroup>
           </div>
         </TransitionGroup>
-        <!-- Winner Submission -->
       </section>
     </TransitionGroup>
     <!-- Action Buttons -->

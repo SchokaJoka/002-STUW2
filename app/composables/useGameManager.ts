@@ -348,7 +348,6 @@ export function useGameManager() {
     myChosenWhiteCards.value = [];
 
     playerSubmissions.value = data ?? [];
-    console.log("PLAYERSUBMISSION: ", playerSubmissions.value);
   }
 
   async function handleRoundEnd(currentMetaData: any) {

@@ -32,16 +32,6 @@ useHead({
     { rel: 'manifest', href: '/manifest.json' }
   ]
 });
-
-const user = useSupabaseUser();
-
-onMounted(() => {
-  if (user.value) {
-    console.log('User is logged in:', user.value);
-  } else {
-    console.log('No user is logged in');
-  }
-});
 </script>
 
 <style scoped>

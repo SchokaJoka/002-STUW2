@@ -258,8 +258,6 @@ async function submitBlackCard(text: string, number_of_gaps: number) {
             console.error("Error saving black card:", error);
             return;
         }
-
-        console.log("[EDGE] success submit_black_card", data);
         blackCard.value = data?.card ?? cardPayload;
     } finally {
         isSubmittingBlackCard.value = false;
@@ -310,7 +308,6 @@ async function submitCards() {
             console.error("[EDGE] Error submitting white cards:", error);
         } else {
             isWhiteCardsSubmitted.value = true;
-            console.log("[EDGE] success submit_white_cards", data);
         }
     } finally {
         isSubmittingWhiteCards.value = false;
@@ -335,8 +332,6 @@ async function submitWinner(winnerSubmission: any) {
 
     if (error) {
         console.error("Error selecting winner:", error);
-    } else {
-        console.log("[EDGE] success select_winner", data);
     }
 }
 
@@ -437,7 +432,6 @@ async function handleBackToLobbyConfirmed() {
             body: { room_id: roomId.value },
         });
         if (error) console.error("[EDGE] end_game_go_back_to_lobby error:", error);
-        else console.log("[EDGE] end_game_go_back_to_lobby", data);
     } catch (err) {
         console.error("Error invoking end_game_go_back_to_lobby:", err);
     }

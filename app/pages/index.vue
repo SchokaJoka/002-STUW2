@@ -103,13 +103,10 @@
       <div class="flex flex-col gap-1 justify-center" :style="{ minHeight: 'calc(100vh - var(--home-header-h, 0px))' }">
         <p class="w-full h-fit text-lg font-semibold">
           <span class="text-4xl font-extrabold block mb-4">How to Play</span>
-          Each player starts with a hand of 10 white cards.<br><br>
-          A black card is chosen at random and displayed to all players.<br><br>
-          The black card will present a number i.e. 2 Each player must play this
-          number of white cards.<br><br>
-          The first player starts as the Card Czar. Their role is to select
-          their favourite white card as the winner. The winning player receives
-          1 point!
+          Each player starts with 10 white cards.<br><br>
+          Every round a Czar is chosen and they  draw a random black card. <br><br>
+          Every player has to submit the amount of white cards needed to answer the black card.<br><br>
+          The Czar picks their favorite white card. Winner receives 1 point!
         </p>
       </div>
 

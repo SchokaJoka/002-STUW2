@@ -18,6 +18,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     select: [mode: "classic" | "creative"];
     selectCollection: [collectionId: string];
+    info: [mode: "classic" | "creative"];
 }>();
 
 const isPressed = ref(false);
@@ -60,8 +61,19 @@ function handleCollectionSelect(collectionId: string) {
     emit("selectCollection", collectionId);
 }
 
-function setPressed(pressed: boolean) {
+function handleInfoClick() {
+    emit("info", props.mode);
+}
+
+function isInteractiveChildTarget(event?: PointerEvent) {
+    const target = event?.target;
+    if (!(target instanceof Element)) return false;
+    return !!target.closest("[data-card-interactive='true']");
+}
+
+function setPressed(pressed: boolean, event?: PointerEvent) {
     if (!props.canSelect) return;
+    if (pressed && isInteractiveChildTarget(event)) return;
     isPressed.value = pressed;
 }
 </script>
@@ -74,16 +86,25 @@ function setPressed(pressed: boolean) {
         !canSelect && 'cursor-not-allowed opacity-50',
         canSelect && 'cursor-pointer',
         canSelect && isPressed && 'is-pressed',
-    ]" :style="cardStyle" @click="handleSelect" @pointerdown="setPressed(true)" @pointerup="setPressed(false)"
+    ]" :style="cardStyle" @click="handleSelect" @pointerdown="setPressed(true, $event)" @pointerup="setPressed(false)"
         @pointercancel="setPressed(false)" @pointerleave="setPressed(false)">
         <div class="flex flex-row justify-between w-full">
             <div class="flex flex-col gap-1 w-full">
                 <p class="text-3xl font-semibold">{{ title }}</p>
                 <p class="text-sm font-normal">{{ description }}</p>
             </div>
-            <div v-if="showArrowIcon" class="flex justify-center items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="23" viewBox="0 0 12 23" fill="none"
-                    class="arrow-transition" :class="{ 'arrow-rotated': showCollections }">
+            <div class="flex items-center gap-3 pl-3" data-card-interactive="true" @click.stop>
+                <button
+                    type="button"
+                    class="size-7 rounded-full flex items-center justify-center text-sm font-bold leading-none"
+                    data-card-interactive="true"
+                    aria-label="Show game mode info"
+                    @click.stop="handleInfoClick"
+                >
+                    <img src="~/assets/svg/Info.svg" alt="" aria-hidden="true" class="size-full" />
+                </button>
+                <svg v-if="showArrowIcon" xmlns="http://www.w3.org/2000/svg" width="12" height="23" viewBox="0 0 12 23"
+                    fill="none" class="arrow-transition" :class="{ 'arrow-rotated': showCollections }">
                     <path fill-rule="evenodd" clip-rule="evenodd"
                         d="M8.14441 11.2896L1.49204 4.63721L2.82233 3.30692L10.1398 10.6244C10.3162 10.8009 10.4153 11.0401 10.4153 11.2896C10.4153 11.539 10.3162 11.7783 10.1398 11.9547L2.82233 19.2722L1.49204 17.9419L8.14441 11.2896Z"
                         fill="currentColor" />
@@ -101,6 +122,7 @@ function setPressed(pressed: boolean) {
                 >
                 <div v-for="(collection, index) in collections" :key="collection.id"
                     class="w-full flex flex-row items-center justify-start gap-3 px-4 py-1 rounded-full bg-black text-white transition-colors duration-250 ease-out"
+                    data-card-interactive="true"
                     :style="{ transitionDelay: `${index * 45}ms` }"
                     @click.stop="handleCollectionSelect(collection.id)">
                     <div class="size-5 shrink-0 aspect-square rounded border-2 flex items-center justify-center border-white transition-colors duration-250 ease-out" :class="selectedCollectionIds.includes(collection.id)
@@ -129,11 +151,6 @@ function setPressed(pressed: boolean) {
     will-change: transform, box-shadow;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-}
-
-.selection-card:active {
-    box-shadow: var(--card-shadow-active);
-    transform: translate(-3px, -3px);
 }
 
 .selection-card.is-pressed {

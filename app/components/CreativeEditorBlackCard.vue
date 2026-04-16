@@ -51,17 +51,11 @@ function submitBlackCard() {
         .map((part: any) => (part.isGap ? GAP_TOKEN : (part.text ?? "")))
         .join("");
 
-    console.log("submitBlackCard:", { text: text, number_of_gaps: number_of_gaps.value });
-
     emit('submit', {
         text,
         number_of_gaps: number_of_gaps.value,
     });
 }
-
-watch(currentBlackCardText, () => {
-    console.log("Current Black Card Text:", currentBlackCardText.value);
-}, { deep: true });
 </script>
 
 <template>

@@ -33,6 +33,13 @@ const gameModes: Array<{
     },
   ];
 
+const gameModeInfoText: Record<"classic" | "creative", string> = {
+  classic:
+    "Play with preset cards. Pick white cards, the Czar judges, and points decide the winner.",
+  creative:
+    "No sets, no limits! Every player delivers their own funniest answer to the also self-written black card.",
+};
+
 const players = useState<any[]>("players", () => []);
 const gameChannel = useState<RealtimeChannel | null>("gameChannel", () => null);
 
@@ -316,9 +323,20 @@ onUnmounted(async () => {
 // ============================================================
 const isRoomCodeCopied = ref<boolean>(false);
 const isLeavingFromBack = ref<boolean>(false);
+const showGameInfoOverlay = ref(false);
+const infoMode = ref<"classic" | "creative">("classic");
 const isBackNavigationPending = computed(
   () => isLeavingFromBack.value || isLeaving.value,
 );
+
+const selectedInfoMode = computed(() =>
+  gameModes.find((mode) => mode.value === infoMode.value),
+);
+
+function openGameModeInfo(mode: "classic" | "creative") {
+  infoMode.value = mode;
+  showGameInfoOverlay.value = true;
+}
 
 async function copyRoomCode() {
   navigator.clipboard
@@ -409,10 +427,24 @@ const dev2gaps = ref(false);
         <GameModeSelectionCard v-for="mode in gameModes" :key="mode.value" :mode="mode.value" :title="mode.title"
           :description="mode.description" :selected-mode="selectedGameMode" :can-select="isGameMaster"
           :collections="collections" :selected-collection-ids="selectedCollectionIds" @select="setLobbySettings"
-          @select-collection="setSelectedCollection" :show-arrow-icon="mode.value !== 'creative'"
+          @select-collection="setSelectedCollection" @info="openGameModeInfo" :show-arrow-icon="mode.value !== 'creative'"
           class="rounded-lg overflow-hidden" />
       </div>
     </main>
+
+    <div v-if="showGameInfoOverlay" class="fixed inset-0 z-50 bg-black/40" @click="showGameInfoOverlay = false">
+      <div class="absolute inset-0 flex items-center justify-center p-8">
+        <div class="bg-white text-black flex flex-col rounded p-6 w-full max-w-xs" @click.stop>
+          <p class="font-bold text-2xl">{{ selectedInfoMode?.title || "Game Mode" }}</p>
+          <p class="mt-3 text-lg leading-relaxed">
+            {{ gameModeInfoText[infoMode] }}
+          </p>
+          <div class="mt-4 flex flex-row justify-end w-full gap-4">
+            <Button size="md" variant="secondary" class="rounded" @click="showGameInfoOverlay = false">Ok</Button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Footer -->
     <!-- Player List, Room Info -->
@@ -423,7 +455,7 @@ const dev2gaps = ref(false);
           {{ errorMessage }}
         </div>
         <!-- Player List -->
-        <section class="flex flex-row w-full overflow-x-auto gap-4">
+        <section class="flex flex-row w-full overflow-x-auto gap-2">
           <div v-for="player in players" :key="player.user_id"
             class="flex flex-col gap-2 items-center transition-all border-black">
             <div class="flex items-center justify-center size-12 rounded-full border-2 bg-white transition-all" :class="gameMasterId === player.user_id
@@ -452,22 +484,12 @@ const dev2gaps = ref(false);
                       {{ isRoomCodeCopied ? "Copied!" : roomCode.trim().toUpperCase() }}
                     </div>
                   </Transition>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none">
-                    <path d="M18.4903 3.46692H4.62256V18.4903" stroke="white" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path
-                      d="M9.24512 8.08948H23.1128V21.9572C23.1128 22.5702 22.8693 23.1581 22.4359 23.5915C22.0024 24.025 21.4145 24.2685 20.8015 24.2685H11.5564C10.9434 24.2685 10.3555 24.025 9.92208 23.5915C9.48863 23.1581 9.24512 22.5702 9.24512 21.9572V8.08948Z"
-                      stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
+                  <img src="~/assets/svg/copy.svg" alt="Copy room code" class="h-7 w-7" />
                 </div>
 
                 <div class="flex flex-row items-center h-full">
                   <div @click="shareRoomCode()" class="flex items-center px-4 bg-white h-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none">
-                      <path
-                        d="M15.0234 6.93387L17.3347 4.62259C18.4903 3.46695 20.8016 3.46695 21.9572 4.62259L23.1129 5.77823C24.2685 6.93387 24.2685 9.24516 23.1129 10.4008L17.3347 16.179C16.179 17.3347 13.8677 17.3347 12.7121 16.179M12.7121 20.8016L10.4008 23.1129C9.24516 24.2685 6.93387 24.2685 5.77823 23.1129L4.62259 21.9572C3.46695 20.8016 3.46695 18.4903 4.62259 17.3347L10.4008 11.5564C11.5564 10.4008 13.8677 10.4008 15.0234 11.5564"
-                        stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
+                    <img src="~/assets/svg/link.svg" alt="Share room code" class="h-10 w-10" />
                   </div>
 
                 </div>

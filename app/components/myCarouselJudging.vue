@@ -74,7 +74,6 @@ const groups = computed(() => {
     per[key] = per[key] ?? [];
     per[key].push(it);
   }
-  console.log("GROUPS", order.map((k) => per[k] || []));
   return order.map((k) => per[k] || []);
 
 });
@@ -90,7 +89,6 @@ const rows = computed(() => {
     for (const p of players) if (p[r]) row.push(p[r]);
     out.push(row);
   }
-  console.log("ROWS", out);
   return out;
 });
 

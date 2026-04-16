@@ -206,7 +206,6 @@ async function confirmDelete() {
         console.error("Error deleting cards:", error);
         return;
     };
-    console.log("Deleted collection:", data);
     userCollections.value = userCollections.value.filter(c => c.id !== activeSet.value?.id);
     showDeleteConfirm.value = false;
 }
