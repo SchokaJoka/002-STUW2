@@ -50,6 +50,11 @@
               @click="handleAuthAction">
               Logout
             </button>
+            <button
+              class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
+              @click="navigateTo('/credits')">
+              Credits
+            </button>
           </div>
           <div v-if="user" class="p-4 w-full">
             <div v-if="editingGuestName"
@@ -102,8 +107,7 @@
         </div>
       </div>
 
-      <div class="flex flex-col gap-1 pt-8 justify-between h-dvh">
-        <div></div>
+      <div class="flex flex-col gap-1 pt-8 justify-center h-dvh">
         <!-- How To Play -->
         <p class="w-full h-fit text-lg font-semibold px-16">
           <span class="text-4xl font-extrabold block mb-4">How to Play</span>
@@ -112,26 +116,6 @@
           Every player has to submit the amount of white cards needed to answer the black card.<br><br>
           The Czar picks their favorite white card. Winner receives 1 point!
         </p>
-        <!-- Credits -->
-        <div class="w-full flex flex-col gap-2 px-4 pb-2 pt-4 text-xs items-start bg-white text-black rounded-t-xl">
-          <p>
-            Made with ❤️ by Eve Steiger - Karim Pathan - Joel Kammermann
-          </p>
-          <p>
-            Developed as a semester project for the Studio UX & Web 2 module
-          </p>
-          <p>
-            We would like to thank our lecturers for their guidance throughout the development process.
-          </p>
-          <div class="w-full flex flex-row justify-between items-center">
-            <div class="w-24 h-10 flex items-center justify-start">
-              <img class="max-w-full max-h-full object-contain rounded-full" src="~/assets/img/di-logo.jpg" alt="Digital Ideation logo" />
-            </div>
-            <div class="w-32 h-10 flex items-center justify-end">
-              <img class="max-w-full max-h-full object-contain" src="~/assets/img/hslu-logo-black.png" alt="HSLU logo" />
-            </div>
-          </div>
-        </div>
       </div>
       <p v-if="lobbyError" class="text-red-500 mt-4 text-sm">{{ lobbyError }}</p>
     </section>
