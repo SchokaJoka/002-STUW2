@@ -1,6 +1,6 @@
 <template>
     <main class="w-full flex items-center justify-center bg-black text-white">
-        <header ref="headerEl" class="fixed top-0 w-full flex items-center justify-start p-4 z-40">
+        <header ref="headerEl" class="fixed top-0 w-full flex items-center justify-start p-4 z-40 bg-black">
             <div class="cursor-pointer" @click="navigateTo('/')">
                 <img src="~/assets/svg/back.svg" alt="Back" class="h-8 w-10" />
             </div>
