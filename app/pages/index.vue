@@ -83,7 +83,7 @@
     <!-- Main Content -->
     <section class="relative flex flex-col items-center justify-start h-full w-full max-w-2xl gap-16">
       <!-- Welcome -->
-      <div class="flex flex-col w-full gap-8 py-4 justify-between h-lvh px-16">
+      <div class="flex flex-col w-full gap-8 py-4 justify-between h-dvh px-16">
         <div></div>
         <div class="w-full flex flex-col gap-8">
           <h1 class="h-fit text-5xl font-extrabold mb-4">
@@ -102,7 +102,7 @@
         </div>
       </div>
 
-      <div class="flex flex-col gap-1 pt-8 justify-between h-lvh">
+      <div class="flex flex-col gap-1 pt-8 justify-between h-dvh">
         <div></div>
         <!-- How To Play -->
         <p class="w-full h-fit text-lg font-semibold px-16">
