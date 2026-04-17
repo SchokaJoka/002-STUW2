@@ -50,6 +50,11 @@
               @click="handleAuthAction">
               Logout
             </button>
+            <button
+              class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
+              @click="navigateTo('/credits')">
+              Credits
+            </button>
           </div>
           <div v-if="user" class="p-4 w-full">
             <div v-if="editingGuestName"
@@ -119,6 +124,12 @@
           </p>
           <p>
             Developed as a semester project for the Studio UX & Web 2 module
+          </p>
+          <p>
+            This is an unofficial, non-commercial fan project.
+          </p>
+          <p>
+            Card content from Cards Against Humanity, used under CC BY-NC-SA 4.0. This project is also released under CC BY-NC-SA 4.0.
           </p>
           <p>
             We would like to thank our lecturers for their guidance throughout the development process.
