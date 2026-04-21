@@ -50,8 +50,7 @@
               @click="handleAuthAction">
               Logout
             </button>
-            <button
-              class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
+            <button class="text-left px-4 py-2 hover:bg-black/20 text-3xl font-semibold transition-all"
               @click="navigateTo('/credits')">
               Credits
             </button>
@@ -103,7 +102,7 @@
         </div>
         <div class="w-full flex justify-center transition-opacity duration-300"
           :class="showScrollIndicator ? 'opacity-100' : 'opacity-0 pointer-events-none'">
-          <img src="~/assets/svg/weui_arrow-outlined.svg" class="h-8 w-8 animate-bounce" />
+          <img src="~/assets/svg/weui_arrow-outlined.svg" class="h-8 w-8 animate-bounce" @click="handleScrollClick" />
         </div>
       </div>
 
@@ -138,6 +137,14 @@ const { headerEl } = useHeaderHeight("--home-header-h");
 
 const handleWindowScroll = () => {
   showScrollIndicator.value = window.scrollY < 10;
+};
+
+const handleScrollClick = () => {
+  if (typeof window === "undefined") return;
+  window.scrollTo({
+    top: document.documentElement.scrollHeight,
+    behavior: "smooth",
+  });
 };
 
 // Guest name editing
