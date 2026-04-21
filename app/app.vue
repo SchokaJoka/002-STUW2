@@ -10,7 +10,7 @@
 const siteUrl = 'https://humanityagainstcards.vercel.app';
 const siteName = 'Humanity Against Cards';
 const siteDescription = 'Play Humanity Against Cards Online with Friends';
-const socialImageUrl = `${siteUrl}/img/cover.png`;
+const socialImageUrl = `${siteUrl}/img/Cover.png`;
 
 useHead({
   title: `${siteName}`,
