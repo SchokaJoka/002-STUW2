@@ -10,12 +10,12 @@
 const siteUrl = 'https://humanityagainstcards.vercel.app';
 const siteName = 'Humanity Against Cards';
 const siteDescription = 'Play Humanity Against Cards Online with Friends';
-const socialImageUrl = `${siteUrl}/icons/icon-512x512.png`;
+const socialImageUrl = `${siteUrl}/img/cover.png`;
 
 useHead({
-  title: `${siteName} - Online`,
+  title: `${siteName}`,
   titleTemplate: (titleChunk) => {
-    return titleChunk ? `${titleChunk} | ${siteName}` : `${siteName} - Online`;
+    return titleChunk ? `${titleChunk} | ${siteName}` : `${siteName}`;
   },
   htmlAttrs: {
     lang: 'en'
@@ -33,9 +33,9 @@ useHead({
     { property: 'og:url', content: `${siteUrl}/` },
     { property: 'og:image', content: socialImageUrl },
     { property: 'og:image:type', content: 'image/png' },
-    { property: 'og:image:width', content: '512' },
-    { property: 'og:image:height', content: '512' },
-    { property: 'og:image:alt', content: 'Humanity Against Cards logo' },
+    { property: 'og:image:width', content: '4320' },
+    { property: 'og:image:height', content: '3072' },
+    { property: 'og:image:alt', content: 'Humanity Against Cards Cover' },
     // Twitter Card
     { name: 'twitter:card', content: 'summary_large_image' },
     { name: 'twitter:title', content: siteName },
